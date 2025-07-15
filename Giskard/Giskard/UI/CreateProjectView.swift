@@ -77,18 +77,28 @@ struct CreateProjectView: View {
                         // Create the project directory if it doesn't exist
                         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
                         
-                        // Prepare the project settings JSON
-                        let settings: [String: Any] = [
-                            "projectVersion": 1,
-                            "projectName": projectName,
-                            "projectAuthor": projectAuthor,
-                            "projectPath": projectPath,
-                            "description": description,
-                            "creationDate": ISO8601DateFormatter().string(from: Date())
-                        ]
-                        let data = try JSONSerialization.data(withJSONObject: settings, options: .prettyPrinted)
+                        // Create ProjectInformation instance
+                        let projectInfo = ProjectInformation(
+                            projectVersion: 1,
+                            projectName: projectName,
+                            projectAuthor: projectAuthor,
+                            projectPath: projectPath,
+                            description: description,
+                            creationDate: ISO8601DateFormatter().string(from: Date())
+                        )
+                        
+                        // Encode to JSON
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = .prettyPrinted
+                        
+                        let data = try encoder.encode(projectInfo)
+                        
+                        // Write the settings file
                         let settingsURL = folderURL.appendingPathComponent("Giskard_Project_Settings")
                         try data.write(to: settingsURL)
+                        
+                        GiskardApp.loadProject(projectInfo);
+                        
                         dismiss()
                     } catch {
                         // Handle error (show alert or log)
