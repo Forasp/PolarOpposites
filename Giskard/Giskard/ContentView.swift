@@ -10,6 +10,7 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Binding var showCreateProjectSheet: Bool
     @Query private var items: [Item]
 
     var body: some View {
@@ -35,6 +36,9 @@ struct ContentView: View {
         } detail: {
             Text("Select an item")
         }
+        .sheet(isPresented: $showCreateProjectSheet) {
+            CreateProjectView()
+        }
     }
 
     private func addItem() {
@@ -54,6 +58,6 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(showCreateProjectSheet: .constant(false))
         .modelContainer(for: Item.self, inMemory: true)
 }

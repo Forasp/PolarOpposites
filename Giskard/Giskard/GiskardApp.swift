@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct GiskardApp: App {
+    @State private var showCreateProjectSheet:Bool = false
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -25,8 +27,16 @@ struct GiskardApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(showCreateProjectSheet:$showCreateProjectSheet)
         }
         .modelContainer(sharedModelContainer)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("Create Project") {
+                    showCreateProjectSheet = true
+                }
+                .keyboardShortcut("N", modifiers: [.command, .shift])
+            }
+        }
     }
 }
