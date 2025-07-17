@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Binding var showCreateProjectSheet: Bool
@@ -15,34 +14,27 @@ struct ContentView: View {
     @Binding var showOpenProjectPanel: Bool
     @Query private var items: [Item]
     @State private var loadedProjectName: String = "Giskard"
+    @State private var fileRoot: FileNode? = nil
     
     func onProjectLoaded() {
-        if let projectName = GiskardApp.getProject().projectName
-        {
+        fileRoot = nil;
+        loadedProjectName = "Giskard";
+        if let projectName = GiskardApp.getProject().projectName {
             loadedProjectName = projectName
+        }
+        
+        if let projectPath = GiskardApp.getProject().projectPath, let rootURL = URL(string: projectPath) {
+            fileRoot = loadFileNode(for: rootURL)
         }
     }
     
     var body: some View {
         NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+            if let fileRoot {
+                        FileBrowserView(rootNode: fileRoot)
+                    } else {
+                        Text("No Project Loaded")
                     }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
         } detail: {
             Text("Select an item")
         }
