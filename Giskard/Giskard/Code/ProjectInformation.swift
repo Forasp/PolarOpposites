@@ -11,7 +11,7 @@ class ProjectInformation: Codable {
     var projectVersion: Int?
     var projectName: String?
     var projectAuthor: String?
-    var projectPath: String?
+    var projectPath: URL?
     var description: String?
     var creationDate: String?
 
@@ -19,7 +19,7 @@ class ProjectInformation: Codable {
         projectVersion: Int? = nil,
         projectName: String? = nil,
         projectAuthor: String? = nil,
-        projectPath: String? = nil,
+        projectPath: URL? = nil,
         description: String? = nil,
         creationDate: String? = nil
     ) {

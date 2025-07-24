@@ -82,7 +82,7 @@ struct CreateProjectView: View {
                             projectVersion: 1,
                             projectName: projectName,
                             projectAuthor: projectAuthor,
-                            projectPath: projectPath,
+                            projectPath: folderURL,
                             description: description,
                             creationDate: ISO8601DateFormatter().string(from: Date())
                         )

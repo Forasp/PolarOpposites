@@ -44,13 +44,15 @@ struct FileNodeView: View {
         {
             expanded = true
         }
-        self.selected = isSelected;
+        
+        selected = isSelected;
     }
     
 }
 
 
 #Preview {
-    let documentsNode = loadFileNode(for: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!)
-    FileNodeView(levelsNested: .constant(0), onSelectFolder:.constant(nil), node:documentsNode)
+    if let documentsNode = loadFileNode(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!) {
+        FileNodeView(levelsNested: .constant(0), onSelectFolder:.constant(nil), node:documentsNode)
+    }
 }

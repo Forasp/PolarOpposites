@@ -60,13 +60,17 @@ struct FileBrowserView: View {
     }
     
     public func setSelectedFolder(_ node: FileNodeView?) {
-        selectedFolder?.setSelected(false)
-        selectedFolder = node;
+        if (selectedFolder?.node.id != node?.node.id) {
+            selectedFolder?.setSelected(false)
+            selectedFolder = node;
+        }
+        
         selectedFolder?.setSelected(true)
     }
 }
 
 #Preview {
-    let documentsNode = loadFileNode(for: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!)
-    FileBrowserView(rootNode:documentsNode)
+    if let documentsNode = loadFileNode(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!){
+        FileBrowserView(rootNode:documentsNode)
+    }
 }

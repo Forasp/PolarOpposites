@@ -23,8 +23,8 @@ struct ContentView: View {
             loadedProjectName = projectName
         }
         
-        if let projectPath = GiskardApp.getProject().projectPath, let rootURL = URL(string: projectPath) {
-            fileRoot = loadFileNode(for: rootURL)
+        if let projectPath = GiskardApp.getProject().projectPath{
+            fileRoot = loadFileNode(projectPath)
         }
     }
     
@@ -48,7 +48,7 @@ struct ContentView: View {
         }
         .fileImporter(
             isPresented: $showOpenProjectPanel,
-            allowedContentTypes: [.data], // or UTType.json if you prefer
+            allowedContentTypes: [.folder], // or UTType.json if you prefer
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
@@ -59,7 +59,7 @@ struct ContentView: View {
                     }
                 }
                 do {
-                    let data = try Data(contentsOf: url)
+                    let data = try Data(contentsOf: url.appendingPathComponent("Giskard_Project_Settings"))
                     let loadedProject = try JSONDecoder().decode(ProjectInformation.self, from: data)
                     GiskardApp.loadProject(loadedProject)
                 } catch {
