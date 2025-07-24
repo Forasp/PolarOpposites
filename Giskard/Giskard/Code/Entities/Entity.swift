@@ -8,17 +8,29 @@
 import Foundation
 import Spatial
 
-struct Entity: Codable{
+class Entity: Codable{
     // External Facing
-    var id: UUID
-    var name: String
-    var isPhysical: Bool
-    var position: Point3D
-    var rotation: Rotation3D
-    var children: [UUID]
+    public var id: UUID
+    public var name: String
+    public var isPhysical: Bool
+    public var position: Point3D
+    public var rotation: Rotation3D
+    public var children: [UUID]
+    public var capabilities: [Capability.Type] = []
+    
+    public init(_ name: String, uuid: UUID = UUID(), physical: Bool = true, pos: Point3D = .zero, rot: Rotation3D = .identity, child:[UUID] = [], caps: [Capability.Type] = [])
+    {
+        id = uuid
+        self.name = name
+        isPhysical = physical
+        position = pos
+        rotation = rot
+        children = child
+        capabilities = caps
+    }
     
     // Internal facing
-    var childEntities: [Entity] = []
+    private var childEntities: [Entity] = []
     
     // Choose Encodable Properties
     enum CodingKeys: String, CodingKey {
