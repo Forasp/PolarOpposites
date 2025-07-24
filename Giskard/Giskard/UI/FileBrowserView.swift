@@ -7,8 +7,12 @@
 
 import SwiftUI
 import AppKit
+import Foundation
+
 struct FileBrowserView: View {
     @State private var selectedFolder: FileNodeView? = nil
+    @State private var showingNewEntityPrompt = false
+    @State private var newEntityName = ""
     var rootNode: FileNode
 
     var body: some View {
@@ -53,9 +57,65 @@ struct FileBrowserView: View {
                             }
                         }
                     }
-                    .frame(height: geo.size.height * 0.60)
+                    .frame(height: geo.size.height * 0.53)
+                    Divider()
+                    Divider()
+                    HStack (alignment: .top){
+                        Button(action: {
+                            newEntityName = ""
+                            showingNewEntityPrompt = true
+                        }) {
+                            Image(systemName: "plus")
+                                .imageScale(.small)
+                                .padding(2)
+                        }
+                        .help("Create an Entity") // <-- hover text on macOS
+                        Spacer()
+                    }
+                    .alert("New Entity Name", isPresented: $showingNewEntityPrompt, actions: {
+                        TextField("Entity Name", text: $newEntityName)
+                        Button("Create") {
+                            createNewEntityFile()
+                        }
+                        Button("Cancel", role: .cancel) { }
+                    })
+                    .frame(height: geo.size.height * 0.07)
                 }
             }
+        }
+    }
+    
+    public func createNewEntityFile() {
+        
+        guard let baseURL = selectedFolder?.node.url else { return }
+        let sanitizedEntityName = newEntityName.replacingOccurrences(of: " ", with: "") + ".json"
+        
+        var didStartAccessing = false
+            
+        do {
+            let emptyEntity:Entity = Entity(sanitizedEntityName);
+            
+            // Encode to JSON
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            
+            let data = try encoder.encode(emptyEntity)
+            
+            // Write the settings file
+            let fileURL = baseURL.appendingPathComponent(sanitizedEntityName)
+            if baseURL.startAccessingSecurityScopedResource() {
+                didStartAccessing = true
+            }
+
+            defer {
+                if didStartAccessing {
+                    baseURL.stopAccessingSecurityScopedResource()
+                }
+            }
+            try data.write(to: fileURL)
+        }
+        catch {
+            print("Error writing entity file: \(error)")
         }
     }
     

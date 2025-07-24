@@ -67,11 +67,11 @@ struct CreateProjectView: View {
                         didStartAccessing = true
                     }
 
-                    defer {
-                        if didStartAccessing {
-                            baseURL.stopAccessingSecurityScopedResource()
-                        }
-                    }
+                   //defer {
+                    //   if didStartAccessing {
+                     //       baseURL.stopAccessingSecurityScopedResource()
+                     //   }
+                    //}
                         
                     do {
                         // Create the project directory if it doesn't exist

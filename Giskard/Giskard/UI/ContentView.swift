@@ -61,6 +61,7 @@ struct ContentView: View {
                 do {
                     let data = try Data(contentsOf: url.appendingPathComponent("Giskard_Project_Settings"))
                     let loadedProject = try JSONDecoder().decode(ProjectInformation.self, from: data)
+                    loadedProject.projectPath = url;
                     GiskardApp.loadProject(loadedProject)
                 } catch {
                     print("Failed to load project: \(error)")
