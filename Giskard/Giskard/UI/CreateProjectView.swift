@@ -58,51 +58,46 @@ struct CreateProjectView: View {
                 }
                 Spacer()
                 Button("Create Project") {
-                    guard let baseURL = baseFolderURL else { return }
-                    let sanitizedProjectName = projectName.replacingOccurrences(of: " ", with: "")
-                    let folderURL = baseURL.appendingPathComponent(sanitizedProjectName)
-                    
-                    var didStartAccessing = false
-                    if baseURL.startAccessingSecurityScopedResource() {
-                        didStartAccessing = true
+                    do
+                    {
+                        guard let baseURL = baseFolderURL else { return }
+                        let sanitizedProjectName = projectName.replacingOccurrences(of: " ", with: "")
+                        let folderURL = baseURL.appendingPathComponent(sanitizedProjectName)
+                        
+                        FileSys.shared.SetRootURL(url: baseURL)
+                        if (FileSys.shared.CreateFolder(folderURL.path)) {
+                            FileSys.shared.SetRootURL(url: folderURL)
+                            // Create ProjectInformation instance
+                            let projectInfo = ProjectInformation(
+                                projectVersion: 1,
+                                projectName: projectName,
+                                projectAuthor: projectAuthor,
+                                projectPath: folderURL,
+                                description: description,
+                                creationDate: ISO8601DateFormatter().string(from: Date())
+                            )
+                            
+                            // Encode to JSON
+                            let encoder = JSONEncoder()
+                            encoder.outputFormatting = .prettyPrinted
+                            
+                            let data = try encoder.encode(projectInfo)
+                            
+                            // Write the settings file
+                            let settingsURL = folderURL.appendingPathComponent("Giskard_Project_Settings")
+                            if (FileSys.shared.CreateFile(settingsURL.path, data:data)){
+                                GiskardApp.loadProject(projectInfo);
+                                
+                                dismiss()
+                            }
+                        }
+                        else {
+                            // Handle error (show alert or log)
+                            print("Failed to create project")
+                        }
                     }
-
-                   //defer {
-                    //   if didStartAccessing {
-                     //       baseURL.stopAccessingSecurityScopedResource()
-                     //   }
-                    //}
-                        
-                    do {
-                        // Create the project directory if it doesn't exist
-                        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-                        
-                        // Create ProjectInformation instance
-                        let projectInfo = ProjectInformation(
-                            projectVersion: 1,
-                            projectName: projectName,
-                            projectAuthor: projectAuthor,
-                            projectPath: folderURL,
-                            description: description,
-                            creationDate: ISO8601DateFormatter().string(from: Date())
-                        )
-                        
-                        // Encode to JSON
-                        let encoder = JSONEncoder()
-                        encoder.outputFormatting = .prettyPrinted
-                        
-                        let data = try encoder.encode(projectInfo)
-                        
-                        // Write the settings file
-                        let settingsURL = folderURL.appendingPathComponent("Giskard_Project_Settings")
-                        try data.write(to: settingsURL)
-                        
-                        GiskardApp.loadProject(projectInfo);
-                        
-                        dismiss()
-                    } catch {
-                        // Handle error (show alert or log)
-                        print("Failed to create project: \(error.localizedDescription)")
+                    catch{
+                        print("Failed to create project")
                     }
                 }
                 .disabled(projectName.isEmpty || projectAuthor.isEmpty || projectPath.isEmpty)
@@ -127,6 +122,7 @@ struct CreateProjectView: View {
         .frame(minWidth: 650, idealWidth: 650)
     }
 }
+
 
 #Preview {
     CreateProjectView()

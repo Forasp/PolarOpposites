@@ -7,43 +7,39 @@
 
 import Foundation
 
-struct FileNode: Identifiable {
-    let id = UUID()
-    let url: URL
-    var isDirectory: Bool
-    var children: [FileNode]? = nil
+class FileNode: Identifiable {
+    public let id = UUID()
+    public var url: URL = URL(fileURLWithPath: "")
+    public var isDirectory: Bool = false
+    public var children: [FileNode]? = nil
+    
+    init(url: URL, isDirectory: Bool, children: [FileNode]? = nil) {
+        self.isDirectory = isDirectory
+        self.children = children
+        self.url = url
+    }
 }
 
 func loadFileNode(_ url: URL) -> FileNode? {
-    let accessGranted = url.startAccessingSecurityScopedResource()
-    var isDir: ObjCBool = false
-    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir){
-        let isDirectory = isDir.boolValue
+    if FileSys.shared.DoesFileExist(url.absoluteString){
+        let isDirectory = FileSys.shared.IsPathDirectory(url.absoluteString)
 
         var children: [FileNode] = []
         if isDirectory {
-            do {
-                FileManager.default.changeCurrentDirectoryPath(url.path)
-                let contents = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
-                for itemURL in contents {
-                    if let fileNode = loadFileNode(url.appendingPathComponent(itemURL.lastPathComponent)){
-                        children.append(fileNode)
-                    }
-                    FileManager.default.changeCurrentDirectoryPath(url.path)
+            // Add folders first
+            FileSys.shared.GetFoldersInDirectory(url.absoluteString).forEach {
+                if let fileNode = loadFileNode(url.appendingPathComponent($0)){
+                    children.append(fileNode)
                 }
             }
-            catch{
-                print("Error info: \(error)")
+            // Add files second
+            FileSys.shared.GetFilesInDirectory(url.absoluteString).forEach {
+                if let fileNode = loadFileNode(url.appendingPathComponent($0)){
+                    children.append(fileNode)
+                }
             }
         }
-        if(accessGranted){
-            url.stopAccessingSecurityScopedResource()
-        }
         return FileNode(url: url, isDirectory: isDirectory, children: children)
-    }
-    
-    if(accessGranted){
-        url.stopAccessingSecurityScopedResource()
     }
     return nil
 }

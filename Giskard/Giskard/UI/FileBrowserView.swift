@@ -103,16 +103,12 @@ struct FileBrowserView: View {
             
             // Write the settings file
             let fileURL = baseURL.appendingPathComponent(sanitizedEntityName)
-            if baseURL.startAccessingSecurityScopedResource() {
-                didStartAccessing = true
+            if (FileSys.shared.CreateFile(fileURL.absoluteString, data: data)){
+                selectedFolder?.node.children?.append(FileNode(url: fileURL, isDirectory: false))
             }
-
-            defer {
-                if didStartAccessing {
-                    baseURL.stopAccessingSecurityScopedResource()
-                }
+            else {
+                print("Error writing entity file: \(fileURL.absoluteString)")
             }
-            try data.write(to: fileURL)
         }
         catch {
             print("Error writing entity file: \(error)")
