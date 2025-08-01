@@ -13,6 +13,9 @@ struct GiskardApp: App {
     @State private var showCreateProjectSheet:Bool = false
     @State private var showOpenProjectPanel = false
     private static var currentProject: ProjectInformation? = nil  // Holds the current project, nil by default
+    @State static var mainInspectorType:InspectorTypes = InspectorTypes.EntityInspector
+    @State static var mainSelectedEntity:Entity? = nil
+    @State var updater: Bool = false
     
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -30,7 +33,7 @@ struct GiskardApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(showCreateProjectSheet:$showCreateProjectSheet,
-                        currentProject: .constant(GiskardApp.currentProject), showOpenProjectPanel:$showOpenProjectPanel)
+                        currentProject: .constant(GiskardApp.currentProject), showOpenProjectPanel:$showOpenProjectPanel, inspectorType: .constant(GiskardApp.mainInspectorType), selectedEntity: .constant(GiskardApp.mainSelectedEntity))
         }
         .modelContainer(sharedModelContainer)
         .commands {
@@ -44,6 +47,10 @@ struct GiskardApp: App {
                     showOpenProjectPanel = true
                 }
                 .keyboardShortcut("O", modifiers: [.command, .shift])
+                Button("Force Refresh") {
+                    updater.toggle()
+                }
+                .keyboardShortcut(KeyEquivalent(Character(UnicodeScalar(NSF5FunctionKey)!)))
             }
         }
     }
@@ -61,5 +68,14 @@ struct GiskardApp: App {
         }
         
         return currentProject!;
+    }
+    
+    public static func selectEntity(_ entity: Entity) {
+        mainSelectedEntity = entity
+        mainInspectorType = .EntityInspector
+    }
+    
+    public static func deselectEntity() {
+        mainSelectedEntity = nil
     }
 }
