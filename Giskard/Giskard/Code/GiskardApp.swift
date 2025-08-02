@@ -14,8 +14,8 @@ struct GiskardApp: App {
     @State private var showOpenProjectPanel = false
     private static var currentProject: ProjectInformation? = nil  // Holds the current project, nil by default
     @State static var mainInspectorType:InspectorTypes = InspectorTypes.EntityInspector
-    @State static var mainSelectedEntity:Entity? = nil
     @State var updater: Bool = false
+    static var selectedEntities:[Entity] = []
     
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -33,7 +33,7 @@ struct GiskardApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(showCreateProjectSheet:$showCreateProjectSheet,
-                        currentProject: .constant(GiskardApp.currentProject), showOpenProjectPanel:$showOpenProjectPanel, inspectorType: .constant(GiskardApp.mainInspectorType), selectedEntity: .constant(GiskardApp.mainSelectedEntity))
+                        currentProject: .constant(GiskardApp.currentProject), showOpenProjectPanel:$showOpenProjectPanel, inspectorType: .constant(GiskardApp.mainInspectorType))
         }
         .modelContainer(sharedModelContainer)
         .commands {
@@ -71,11 +71,22 @@ struct GiskardApp: App {
     }
     
     public static func selectEntity(_ entity: Entity) {
-        mainSelectedEntity = entity
+        selectedEntities.insert(entity, at: 0)
         mainInspectorType = .EntityInspector
+        // Todo: update flag?
+        // Deselect previous entity
+        if (selectedEntities.count > 1)
+        {
+            deselectEntity(selectedEntities[selectedEntities.count-1])
+        }
     }
     
-    public static func deselectEntity() {
-        mainSelectedEntity = nil
+    public static func deselectEntity(_ entity: Entity) {
+        for i in 0..<selectedEntities.count {
+            if (selectedEntities[i].id == entity.id) {
+                selectedEntities.remove(at: i)
+                return
+            }
+        }
     }
 }
