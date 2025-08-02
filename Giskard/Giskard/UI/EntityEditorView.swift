@@ -9,13 +9,30 @@ import SwiftUI
 import Spatial
 
 struct EntityEditorView: View {
-    @State var entity: Entity
+    @State var entity: Entity;
     @State private var isDirty: Bool = false
     @State private var pitch: Double = 0
     @State private var yaw: Double = 0
     @State private var roll: Double = 0
     @State private var magnitude: Double = 0
     @State private var capabilityList: [String] = ["None"]
+    
+    init() {
+        if (GiskardApp.selectedEntities.count > 0)
+        {
+            self.entity = GiskardApp.selectedEntities[0]
+        }
+        else
+        {
+            self.entity = Entity("Sample Entity")
+        }
+        self.isDirty = false
+        self.pitch = self.entity.rotation.vector.x
+        self.yaw = self.entity.rotation.vector.y
+        self.roll = self.entity.rotation.vector.z
+        self.magnitude = self.entity.rotation.vector.w
+        self.capabilityList = self.entity.capabilities
+    }
 
     var body: some View {
         Form {
@@ -74,9 +91,40 @@ struct EntityEditorView: View {
                 }
             }
         }
+        .onAppear(){
+            Task {
+                await update()
+            }
+        }
+    }
+    
+    
+    func updateEntity(_ entity:Entity) {
+        self.entity = entity
+        self.isDirty = false
+        self.pitch = self.entity.rotation.vector.x
+        self.yaw = self.entity.rotation.vector.y
+        self.roll = self.entity.rotation.vector.z
+        self.magnitude = self.entity.rotation.vector.w
+        self.capabilityList = self.entity.capabilities
+    }
+    
+    func update() async {
+        while (true) {
+            do {
+                if (GiskardApp.selectedEntities.count > 0 && GiskardApp.selectedEntities[0].id != entity.id)
+                {
+                    updateEntity(GiskardApp.selectedEntities[0])
+                }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            catch {
+                
+            }
+        }
     }
 }
 
 #Preview {
-    EntityEditorView(entity: Entity("Test Entity"))
+    EntityEditorView()
 }

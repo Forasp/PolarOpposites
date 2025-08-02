@@ -18,7 +18,6 @@ struct ContentView: View {
     @Binding var currentProject: ProjectInformation?
     @Binding var showOpenProjectPanel: Bool
     @Binding var inspectorType:InspectorTypes
-    @Binding var selectedEntity:Entity?
     @Query private var items: [Item]
     @State private var loadedProjectName: String = "Giskard"
     @State private var fileRoot: FileNode? = nil
@@ -75,12 +74,10 @@ struct ContentView: View {
             }
             .navigationTitle(loadedProjectName)
             .inspector(isPresented:$showInspector){
-                switch(inspectorType) {
+                if (showInspector){
+                    switch(inspectorType) {
                     case InspectorTypes.EntityInspector:
-                        if let currentEntity = selectedEntity {
-                        EntityEditorView(entity: currentEntity)
-                    } else {
-                        EntityEditorView(entity: Entity("Sample Entity"))
+                        EntityEditorView()
                     }
                 }
             }
@@ -110,7 +107,7 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(showCreateProjectSheet: .constant(false), currentProject: .constant(nil), showOpenProjectPanel: .constant(false), inspectorType: .constant(.EntityInspector), selectedEntity: .constant(nil))
+    ContentView(showCreateProjectSheet: .constant(false), currentProject: .constant(nil), showOpenProjectPanel: .constant(false), inspectorType: .constant(.EntityInspector))
         .modelContainer(for: Item.self, inMemory: true)
 }
 
