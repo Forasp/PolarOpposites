@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/master.swiftdeps"
+  },
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Sources/Renderer/Renderer.swift": {
+    "dependencies": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/Renderer.d",
+    "object": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/Renderer.swift.o",
+    "swiftmodule": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/Renderer~partial.swiftmodule",
+    "swift-dependencies": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/Renderer.swiftdeps",
+    "diagnostics": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/Renderer.dia"
+  }
+}

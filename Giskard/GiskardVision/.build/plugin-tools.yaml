@@ -1,0 +1,112 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.module": ["<GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.module>"]
+  "GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.test": ["<GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.test>"]
+  "PackageStructure": ["<PackageStructure>"]
+  "Renderer-arm64-apple-macosx26.0-debug.module": ["<Renderer-arm64-apple-macosx26.0-debug.module>"]
+  "RendererTests-arm64-apple-macosx26.0-debug.module": ["<RendererTests-arm64-apple-macosx26.0-debug.module>"]
+  "main": ["<Renderer-arm64-apple-macosx26.0-debug.module>"]
+  "test": ["<GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.test>","<Renderer-arm64-apple-macosx26.0-debug.module>","<RendererTests-arm64-apple-macosx26.0-debug.module>"]
+default: "main"
+nodes:
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Sources/Renderer/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Tests/RendererTests/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.derived/runner.swift"]
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/sources"]
+    description: "Write auxiliary file /Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/sources"
+
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.derived/runner.swift":
+    tool: test-entry-point-tool
+    inputs: []
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.derived/runner.swift"]
+
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/runner.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/Renderer.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/RendererTests.swift.o"]
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.product/Objects.LinkFileList"
+
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Sources/Renderer/Renderer.swift"]
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/sources"]
+    description: "Write auxiliary file /Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/sources"
+
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Tests/RendererTests/RendererTests.swift"]
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/sources"]
+    description: "Write auxiliary file /Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/sources"
+
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"]
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+
+  "<GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.module>":
+    tool: phony
+    inputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/runner.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/GiskardVisionPackageTests.swiftmodule"]
+    outputs: ["<GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.module>"]
+
+  "<GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.test>":
+    tool: phony
+    inputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.xctest/Contents/MacOS/GiskardVisionPackageTests"]
+    outputs: ["<GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.test>"]
+
+  "<Renderer-arm64-apple-macosx26.0-debug.module>":
+    tool: phony
+    inputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/Renderer.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/Renderer.swiftmodule"]
+    outputs: ["<Renderer-arm64-apple-macosx26.0-debug.module>"]
+
+  "<RendererTests-arm64-apple-macosx26.0-debug.module>":
+    tool: phony
+    inputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/RendererTests.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/RendererTests.swiftmodule"]
+    outputs: ["<RendererTests-arm64-apple-macosx26.0-debug.module>"]
+
+  "C.GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.module":
+    tool: shell
+    inputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.derived/runner.swift","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/RendererTests.swiftmodule","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/sources"]
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/runner.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/GiskardVisionPackageTests.swiftmodule"]
+    description: "Compiling Swift Module 'GiskardVisionPackageTests' (1 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","GiskardVisionPackageTests","-emit-dependencies","-emit-module","-emit-module-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/GiskardVisionPackageTests.swiftmodule","-output-file-map","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/output-file-map.json","-parse-as-library","-incremental","-c","@/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/sources","-I","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx14.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-Xfrontend","-enable-cross-import-overlays","-j14","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-emit-objc-header","-emit-objc-header-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/include/GiskardVisionPackageTests-Swift.h","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-Xcc","-fPIC","-Xcc","-g","-package-name","giskardvision"]
+
+  "C.GiskardVisionPackageTests-arm64-apple-macosx26.0-debug.test":
+    tool: shell
+    inputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/runner.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/Renderer.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/RendererTests.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.product/Objects.LinkFileList"]
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.xctest/Contents/MacOS/GiskardVisionPackageTests"]
+    description: "Linking ./.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.xctest/Contents/MacOS/GiskardVisionPackageTests"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-L","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug","-o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.xctest/Contents/MacOS/GiskardVisionPackageTests","-module-name","GiskardVisionPackageTests","-Xlinker","-no_warn_duplicate_libraries","-Xlinker","-bundle","-Xlinker","-rpath","-Xlinker","@loader_path/../../../","@/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-6.2/macosx","-target","arm64-apple-macosx14.0","-Xlinker","-add_ast_path","-Xlinker","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/GiskardVisionPackageTests.swiftmodule","-Xlinker","-add_ast_path","-Xlinker","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/Renderer.swiftmodule","-Xlinker","-add_ast_path","-Xlinker","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/RendererTests.swiftmodule","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g"]
+
+  "C.Renderer-arm64-apple-macosx26.0-debug.module":
+    tool: shell
+    inputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Sources/Renderer/Renderer.swift","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/sources"]
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/Renderer.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/Renderer.swiftmodule"]
+    description: "Compiling Swift Module 'Renderer' (1 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","Renderer","-emit-dependencies","-emit-module","-emit-module-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/Renderer.swiftmodule","-output-file-map","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/output-file-map.json","-parse-as-library","-incremental","-c","@/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/sources","-I","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx14.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-j14","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-emit-objc-header","-emit-objc-header-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Renderer.build/include/Renderer-Swift.h","-swift-version","5","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-Xcc","-fPIC","-Xcc","-g","-package-name","giskardvision"]
+
+  "C.RendererTests-arm64-apple-macosx26.0-debug.module":
+    tool: shell
+    inputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Tests/RendererTests/RendererTests.swift","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/Renderer.swiftmodule","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/sources"]
+    outputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/RendererTests.swift.o","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/RendererTests.swiftmodule"]
+    description: "Compiling Swift Module 'RendererTests' (1 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","RendererTests","-emit-dependencies","-emit-module","-emit-module-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules/RendererTests.swiftmodule","-output-file-map","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/output-file-map.json","-parse-as-library","-incremental","-c","@/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/sources","-I","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx14.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-Xfrontend","-enable-cross-import-overlays","-j14","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-swift-version","5","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-Xcc","-fPIC","-Xcc","-g","-package-name","giskardvision"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Sources/Renderer/","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Tests/RendererTests/","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Package.swift","/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+

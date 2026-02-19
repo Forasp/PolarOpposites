@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/master.swiftdeps"
+  },
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/Tests/RendererTests/RendererTests.swift": {
+    "dependencies": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/RendererTests.d",
+    "object": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/RendererTests.swift.o",
+    "swiftmodule": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/RendererTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/RendererTests.swiftdeps",
+    "diagnostics": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/RendererTests.build/RendererTests.dia"
+  }
+}

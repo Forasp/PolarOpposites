@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/master.swiftdeps"
+  },
+  "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.derived/runner.swift": {
+    "dependencies": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/runner.d",
+    "object": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/runner.swiftdeps",
+    "diagnostics": "/Users/tim/Projects/PolarOpposites/PolarOpposites/Giskard/GiskardVision/.build/arm64-apple-macosx/debug/GiskardVisionPackageTests.build/runner.dia"
+  }
+}
