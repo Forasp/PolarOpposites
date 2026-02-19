@@ -61,12 +61,11 @@ struct CreateProjectView: View {
                     do
                     {
                         guard let baseURL = baseFolderURL else { return }
+                        FileSys.shared.SetRootURL(url: baseURL)
                         let sanitizedProjectName = projectName.replacingOccurrences(of: " ", with: "")
                         let folderURL = baseURL.appendingPathComponent(sanitizedProjectName)
                         
-                        FileSys.shared.SetRootURL(url: baseURL)
                         if (FileSys.shared.CreateFolder(folderURL.path)) {
-                            FileSys.shared.SetRootURL(url: folderURL)
                             // Create ProjectInformation instance
                             let projectInfo = ProjectInformation(
                                 projectVersion: 1,
@@ -84,8 +83,8 @@ struct CreateProjectView: View {
                             let data = try encoder.encode(projectInfo)
                             
                             // Write the settings file
-                            let settingsURL = folderURL.appendingPathComponent("Giskard_Project_Settings")
-                            if (FileSys.shared.CreateFile(settingsURL.path, data:data)){
+                            let settingsURL = sanitizedProjectName + "/" + "Giskard_Project_Settings"
+                            if (FileSys.shared.CreateFile(settingsURL, data:data)){
                                 GiskardApp.loadProject(projectInfo);
                                 
                                 dismiss()

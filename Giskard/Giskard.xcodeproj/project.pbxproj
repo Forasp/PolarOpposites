@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		9A1F4C4E2F8B1A7300D10001 /* Renderer in Frameworks */ = {isa = PBXBuildFile; productRef = 9A1F4C4E2F8B1A7300D10003 /* Renderer */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		22571E522E261A27005B95BF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9A1F4C4E2F8B1A7300D10001 /* Renderer in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +130,7 @@
 			);
 			name = Giskard;
 			packageProductDependencies = (
+				9A1F4C4E2F8B1A7300D10003 /* Renderer */,
 			);
 			productName = Giskard;
 			productReference = 22571E412E261A26005B95BF /* Giskard.app */;
@@ -208,6 +214,9 @@
 			);
 			mainGroup = 22571E382E261A26005B95BF;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9A1F4C4E2F8B1A7300D10002 /* XCLocalSwiftPackageReference "GiskardVision" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 22571E422E261A26005B95BF /* Products */;
 			projectDirPath = "";
@@ -280,6 +289,21 @@
 			targetProxy = 22571E5C2E261A27005B95BF /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		9A1F4C4E2F8B1A7300D10002 /* XCLocalSwiftPackageReference "GiskardVision" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = GiskardVision;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9A1F4C4E2F8B1A7300D10003 /* Renderer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9A1F4C4E2F8B1A7300D10002 /* XCLocalSwiftPackageReference "GiskardVision" */;
+			productName = Renderer;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		22571E632E261A27005B95BF /* Debug */ = {

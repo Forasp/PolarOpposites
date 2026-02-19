@@ -8,9 +8,10 @@
 import SwiftUI
 import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 struct FileBrowserView: View {
-    @State private var selectedFolder: FileNodeView? = nil
+    @State private var selectedFolder: FileNode? = nil
     @State private var selectedFile: FileNode? = nil
     @State private var showingNewEntityPrompt = false
     @State private var newEntityName = ""
@@ -21,53 +22,56 @@ struct FileBrowserView: View {
             GeometryReader { geo in
                 VStack(spacing: 0) {
                     List {
-                        FileNodeView(levelsNested: .constant(0), onSelectFolder: .constant(setSelectedFolder), node: rootNode)
+                        FileNodeView(
+                            levelsNested: 0,
+                            onSelectFolder: setSelectedFolder,
+                            node: rootNode,
+                            selectedFolderID: selectedFolder?.id,
+                            selectedFolderPath: selectedFolder?.url.path
+                        )
                     }
                     .listStyle(SidebarListStyle())
                     .frame(height: geo.size.height * 0.40)
                     Divider()
                     Divider()
-                    VStack(alignment: .leading)  {
+                    VStack(alignment: .leading) {
                         let columns = [
                             GridItem(.adaptive(minimum: 60), spacing: 16)
                         ]
 
                         VStack(alignment: .leading) {
-                            if let folder = selectedFolder?.node, let files = folder.children?.filter({ !$0.isDirectory }) {
+                            let folder = selectedFolder ?? rootNode
+                            if let items = folder.children {
                                 ScrollView {
                                     LazyVGrid(columns: columns, spacing: 24) {
-                                        ForEach(files) { file in
-                                            Button(action: {
-                                                do {
-                                                    selectedFile = file
-                                                    guard let data = FileSys.shared.ReadFile(file.url.path) else { print("Failed to decode Entity: \(file.url.path)");return}
-                                                    let entity = try JSONDecoder().decode(Entity.self, from: data)
-                                                    GiskardApp.selectEntity(entity)
-                                                }
-                                                catch {
-                                                    print("Failed to decode Entity: \(error)")
-                                                }
-                                            }) {
-                                                VStack {
-                                                    Image(nsImage: NSWorkspace.shared.icon(forFile: file.url.path))
-                                                        .resizable()
-                                                        .aspectRatio(contentMode: .fit)
-                                                        .frame(width: 40, height: 40)
-                                                    Text(file.url.lastPathComponent)
-                                                        .font(.caption)
-                                                        .lineLimit(1)
-                                                        .frame(maxWidth: 72)
-                                                }
-                                                .frame(width: 80)
-                                                .padding(6)
-                                                .background(selectedFile?.id == file.id ? Color.accentColor.opacity(0.25) : Color.clear)
-                                                .cornerRadius(8)
+                                        ForEach(items) { item in
+                                            VStack {
+                                                Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fit)
+                                                    .frame(width: 40, height: 40)
+                                                Text(item.url.lastPathComponent)
+                                                    .font(.caption)
+                                                    .lineLimit(1)
+                                                    .frame(maxWidth: 72)
                                             }
-                                            .buttonStyle(PlainButtonStyle())
+                                            .frame(width: 80)
+                                            .padding(6)
+                                            .background(selectedFile?.id == item.id ? Color.accentColor.opacity(0.25) : Color.clear)
+                                            .cornerRadius(8)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture(count: 1) {
+                                                selectedFile = item
+                                            }
+                                            .onTapGesture(count: 2) {
+                                                activateItem(item)
+                                            }
+                                            .onDrag {
+                                                NSItemProvider(object: item.url.path as NSString)
+                                            }
                                         }
                                     }
                                     .padding(.vertical, 8)
-                                    
                                 }
                             } else {
                                 Text("Select a folder to view its files.")
@@ -78,7 +82,7 @@ struct FileBrowserView: View {
                     .frame(height: geo.size.height * 0.53)
                     Divider()
                     Divider()
-                    HStack (alignment: .top){
+                    HStack(alignment: .top) {
                         Button(action: {
                             newEntityName = ""
                             showingNewEntityPrompt = true
@@ -87,7 +91,7 @@ struct FileBrowserView: View {
                                 .imageScale(.small)
                                 .padding(2)
                         }
-                        .help("Create an Entity") // <-- hover text on macOS
+                        .help("Create an Entity")
                         Spacer()
                     }
                     .alert("New Entity Name", isPresented: $showingNewEntityPrompt, actions: {
@@ -101,50 +105,69 @@ struct FileBrowserView: View {
                 }
             }
         }
-    }
-    
-    public func createNewEntityFile() {
-        
-        guard let baseURL = selectedFolder?.node.url else { return }
-        let sanitizedEntityName = newEntityName.replacingOccurrences(of: " ", with: "") + ".json"
-        
-        var didStartAccessing = false
-            
-        do {
-            let emptyEntity:Entity = Entity(sanitizedEntityName);
-            
-            // Encode to JSON
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
-            
-            let data = try encoder.encode(emptyEntity)
-            
-            // Write the settings file
-            let fileURL = baseURL.appendingPathComponent(sanitizedEntityName)
-            if (FileSys.shared.CreateFile(fileURL.absoluteString, data: data)){
-                selectedFolder?.node.children?.append(FileNode(url: fileURL, isDirectory: false))
-            }
-            else {
-                print("Error writing entity file: \(fileURL.absoluteString)")
+        .onAppear {
+            if selectedFolder == nil {
+                selectedFolder = rootNode
             }
         }
-        catch {
+    }
+
+    public func createNewEntityFile() {
+        guard let baseURL = selectedFolder?.url else { return }
+        let sanitizedEntityName = newEntityName.replacingOccurrences(of: " ", with: "") + ".json"
+
+        do {
+            let emptyEntity: Entity = Entity(sanitizedEntityName)
+
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+
+            let data = try encoder.encode(emptyEntity)
+
+            let fileURL = baseURL.appendingPathComponent(sanitizedEntityName)
+            if FileSys.shared.CreateFile(fileURL.absoluteString, data: data) {
+                selectedFolder?.children?.append(FileNode(url: fileURL, isDirectory: false))
+            } else {
+                print("Error writing entity file: \(fileURL.absoluteString)")
+            }
+        } catch {
             print("Error writing entity file: \(error)")
         }
     }
-    
-    public func setSelectedFolder(_ node: FileNodeView?) {
-        if (selectedFolder?.node.id != node?.node.id) {
-            selectedFolder?.setSelected(false)
-            selectedFolder = node;
+
+    public func setSelectedFolder(_ node: FileNode) {
+        selectedFolder = node
+    }
+
+    private func activateItem(_ item: FileNode) {
+        if item.isDirectory {
+            selectedFile = nil
+            setSelectedFolder(item)
+            return
         }
-        
-        selectedFolder?.setSelected(true)
+
+        selectedFile = item
+
+        if item.url.pathExtension.lowercased() == "png" {
+            GiskardApp.selectImage(item.url)
+            return
+        }
+
+        do {
+            guard let data = FileSys.shared.ReadFile(item.url.path) else {
+                print("Failed to decode Entity: \(item.url.path)")
+                return
+            }
+            let entity = try JSONDecoder().decode(Entity.self, from: data)
+            GiskardApp.selectEntity(entity, fileURL: item.url)
+        } catch {
+            print("Failed to decode Entity: \(error)")
+        }
     }
 }
 
 #Preview {
-    if let documentsNode = loadFileNode(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!){
-        FileBrowserView(rootNode:documentsNode)
+    if let documentsNode = loadFileNode(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!) {
+        FileBrowserView(rootNode: documentsNode)
     }
 }

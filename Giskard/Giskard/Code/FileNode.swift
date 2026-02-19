@@ -8,36 +8,51 @@
 import Foundation
 
 class FileNode: Identifiable {
+    static let ignoredExactEntryNames: Set<String> = [".DS_Store"]
+
     public let id = UUID()
     public var url: URL = URL(fileURLWithPath: "")
     public var isDirectory: Bool = false
     public var children: [FileNode]? = nil
-    
+
     init(url: URL, isDirectory: Bool, children: [FileNode]? = nil) {
         self.isDirectory = isDirectory
         self.children = children
         self.url = url
     }
+
+    static func shouldIgnore(_ name: String) -> Bool {
+        ignoredExactEntryNames.contains(name) || name.hasPrefix("Giskard_Project")
+    }
 }
 
 func loadFileNode(_ url: URL) -> FileNode? {
-    if FileSys.shared.DoesFileExist(url.absoluteString){
+    if FileNode.shouldIgnore(url.lastPathComponent) {
+        return nil
+    }
+
+    if FileSys.shared.DoesFileExist(url.absoluteString) {
         let isDirectory = FileSys.shared.IsPathDirectory(url.absoluteString)
 
         var children: [FileNode] = []
         if isDirectory {
-            // Add folders first
-            FileSys.shared.GetFoldersInDirectory(url.absoluteString).forEach {
-                if let fileNode = loadFileNode(url.appendingPathComponent($0)){
-                    children.append(fileNode)
+            // Add folders first.
+            FileSys.shared.GetFoldersInDirectory(url.absoluteString)
+                .filter { !FileNode.shouldIgnore($0) }
+                .forEach {
+                    if let fileNode = loadFileNode(url.appendingPathComponent($0)) {
+                        children.append(fileNode)
+                    }
                 }
-            }
-            // Add files second
-            FileSys.shared.GetFilesInDirectory(url.absoluteString).forEach {
-                if let fileNode = loadFileNode(url.appendingPathComponent($0)){
-                    children.append(fileNode)
+
+            // Add files second.
+            FileSys.shared.GetFilesInDirectory(url.absoluteString)
+                .filter { !FileNode.shouldIgnore($0) }
+                .forEach {
+                    if let fileNode = loadFileNode(url.appendingPathComponent($0)) {
+                        children.append(fileNode)
+                    }
                 }
-            }
         }
         return FileNode(url: url, isDirectory: isDirectory, children: children)
     }

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Metal
 
 class ProjectInformation: Codable {
     var projectVersion: Int?
@@ -14,6 +15,9 @@ class ProjectInformation: Codable {
     var projectPath: URL?
     var description: String?
     var creationDate: String?
+    
+    // Clear Color Format RGBA
+    var clearColor: [Double]? = [0.0, 0.0, 0.0, 1.0]
 
     init(
         projectVersion: Int? = nil,
@@ -50,5 +54,9 @@ class ProjectInformation: Codable {
     public static func fromJSONFile(url: URL) throws -> ProjectInformation {
         let data = try Data(contentsOf: url)
         return try fromJSONData(data)
+    }
+    
+    public func GetClearColor() -> MTLClearColor {
+        return MTLClearColor(red:clearColor?[0] ?? 0.0, green:clearColor?[1] ?? 0.0, blue:clearColor?[2] ?? 0.0, alpha:clearColor?[3] ?? 1.0)
     }
 }

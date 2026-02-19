@@ -18,31 +18,20 @@ class FileSys{
         
     }
     
-    private func PathToURL(path: String) -> URL{
-        let components = path.components(separatedBy: rootURLDelimier)
-        var pathString:String = ""
-        switch components.count {
-        case 0:
-            // Empty string, or malformed root directory. Error out.
-            exit(404)
-            break
-        case 1:
-            // String was likely relative path
-            pathString = components[0]
-            break
-        default:
-            // String was likely file:// formatted
-            pathString = components[1]
-        }
-        
-        if (pathString.count > 0)
-        {
-            return rootURL.appendingPathComponent(pathString)
-        }
-        else
-        {
+    public func PathToURL(path: String) -> URL{
+        if path.isEmpty {
             return rootURL
         }
+
+        if path.hasPrefix("file://"), let url = URL(string: path), url.isFileURL {
+            return url
+        }
+
+        if path.hasPrefix("/") {
+            return URL(fileURLWithPath: path)
+        }
+
+        return rootURL.appendingPathComponent(path)
     }
     
     public func SetRootURL(url: URL){
@@ -96,6 +85,7 @@ class FileSys{
     private func CreateFile(url: URL, data:Data?) -> Bool{
         
         var didStartAccessing = false
+        var bSuccess = false
         if rootURL.startAccessingSecurityScopedResource() {
             didStartAccessing = true
         }
@@ -106,7 +96,9 @@ class FileSys{
             }
         }
         
-        return fileManager.createFile(atPath: url.path, contents: data)
+        bSuccess = fileManager.createFile(atPath: url.path, contents: data)
+        
+        return bSuccess
     }
     
     private func DoesFileExist(url: URL) -> Bool{
@@ -168,6 +160,27 @@ class FileSys{
         
         return fileManager.contents(atPath:url.path)
     }
+
+    private func WriteFile(url: URL, data: Data) -> Bool {
+        var didStartAccessing = false
+        if rootURL.startAccessingSecurityScopedResource() {
+            didStartAccessing = true
+        }
+
+        defer {
+           if didStartAccessing {
+               rootURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            print("Failed to write file: \(error)")
+            return false
+        }
+    }
     
     public func IsPathDirectory(_ path: String) -> Bool{
         
@@ -200,6 +213,10 @@ class FileSys{
     public func ReadFile(_ path: String) -> Data?{
         
         return ReadFile(url:PathToURL(path: path))
+    }
+
+    public func WriteFile(_ path: String, data: Data) -> Bool {
+        return WriteFile(url: PathToURL(path: path), data: data)
     }
     
 }

@@ -10,6 +10,27 @@ import SwiftData
 
 enum InspectorTypes {
     case EntityInspector
+    case ImageInspector
+
+    init?(notificationValue: String) {
+        switch notificationValue {
+        case "entity":
+            self = .EntityInspector
+        case "image":
+            self = .ImageInspector
+        default:
+            return nil
+        }
+    }
+
+    var notificationValue: String {
+        switch self {
+        case .EntityInspector:
+            return "entity"
+        case .ImageInspector:
+            return "image"
+        }
+    }
 }
 
 struct ContentView: View {
@@ -22,6 +43,9 @@ struct ContentView: View {
     @State private var loadedProjectName: String = "Giskard"
     @State private var fileRoot: FileNode? = nil
     @State private var showInspector:Bool = false
+    @State private var projectLoadedObserver: NSObjectProtocol?
+    @State private var inspectorSelectionObserver: NSObjectProtocol?
+    @State private var activeInspectorType: InspectorTypes = .EntityInspector
     
     func onProjectLoaded() {
         fileRoot = nil;
@@ -44,14 +68,36 @@ struct ContentView: View {
                     Text("No Project Loaded")
                 }
             } detail: {
-                Text("Select an item")
+                SceneRenderView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .sheet(isPresented: $showCreateProjectSheet) {
                 CreateProjectView()
             }
             .onAppear {
-                NotificationCenter.default.addObserver(forName: .projectLoaded, object: nil, queue: .main) { _ in
+                onProjectLoaded()
+                activeInspectorType = GiskardApp.mainInspectorType
+                projectLoadedObserver = NotificationCenter.default.addObserver(forName: .projectLoaded, object: nil, queue: .main) { _ in
                     self.onProjectLoaded()
+                }
+                inspectorSelectionObserver = NotificationCenter.default.addObserver(forName: .inspectorSelectionChanged, object: nil, queue: .main) { notification in
+                    if let rawValue = notification.userInfo?["inspectorType"] as? String,
+                       let parsedType = InspectorTypes(notificationValue: rawValue) {
+                        self.activeInspectorType = parsedType
+                    } else {
+                        self.activeInspectorType = GiskardApp.mainInspectorType
+                    }
+                    self.showInspector = true
+                }
+            }
+            .onDisappear {
+                if let observer = projectLoadedObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    projectLoadedObserver = nil
+                }
+                if let observer = inspectorSelectionObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    inspectorSelectionObserver = nil
                 }
             }
             .fileImporter(
@@ -60,24 +106,25 @@ struct ContentView: View {
                 allowsMultipleSelection: false
             ) { result in
                 if case .success(let urls) = result, let url = urls.first {
-                    do {
-                        FileSys.shared.SetRootURL(url: url)
-                        if let data = FileSys.shared.ReadFile(url.appendingPathComponent("Giskard_Project_Settings").path){
-                            let loadedProject = try JSONDecoder().decode(ProjectInformation.self, from: data)
-                            loadedProject.projectPath = url;
-                            GiskardApp.loadProject(loadedProject)
+                    let didStartAccessing = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if didStartAccessing {
+                            url.stopAccessingSecurityScopedResource()
                         }
-                    } catch {
-                        print("Failed to load project: \(error)")
                     }
+
+                    FileSys.shared.SetRootURL(url: url)
+                    _ = GiskardApp.loadProjectFromDirectory(url)
                 }
             }
             .navigationTitle(loadedProjectName)
             .inspector(isPresented:$showInspector){
                 if (showInspector){
-                    switch(inspectorType) {
+                    switch(activeInspectorType) {
                     case InspectorTypes.EntityInspector:
                         EntityEditorView()
+                    case InspectorTypes.ImageInspector:
+                        ImageInspectorView()
                     }
                 }
             }
@@ -113,4 +160,5 @@ struct ContentView: View {
 
 extension Notification.Name {
     static let projectLoaded = Notification.Name("projectLoaded")
+    static let inspectorSelectionChanged = Notification.Name("inspectorSelectionChanged")
 }

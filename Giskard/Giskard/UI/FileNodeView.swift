@@ -8,51 +8,69 @@
 import SwiftUI
 
 struct FileNodeView: View {
+    let levelsNested: Int
+    let onSelectFolder: (FileNode) -> Void
+    let node: FileNode
+    let selectedFolderID: UUID?
+    let selectedFolderPath: String?
+
     @State private var expanded = false
-    @Binding var levelsNested: Int
-    @Binding var onSelectFolder: ((FileNodeView) -> Void)?
-    var selected:Bool = false
-    var node: FileNode
 
     var body: some View {
-        if node.isDirectory
-        {
-            let indentedString = String(repeating: ">", count: levelsNested) + node.url.lastPathComponent
-            Text(indentedString)
-                .onTapGesture {
-                    onSelectFolder!(self);
+        if node.isDirectory {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                    Image(systemName: "folder")
+                    Text(node.url.lastPathComponent)
+                        .lineLimit(1)
                 }
-                .background(selected ? Color.accentColor.opacity(0.25) : Color.clear)
-            
-            if (expanded)
-            {
-                if let children = node.children {
-                    ForEach(children) { child in
-                        FileNodeView(levelsNested: .constant(levelsNested+1), onSelectFolder: $onSelectFolder, node: child, )
+                .padding(.vertical, 3)
+                .padding(.leading, CGFloat(levelsNested * 12))
+                .contentShape(Rectangle())
+                .background(selectedFolderID == node.id ? Color.accentColor.opacity(0.25) : Color.clear)
+                .onTapGesture {
+                    expanded.toggle()
+                    onSelectFolder(node)
+                }
+
+                if expanded, let children = node.children {
+                    ForEach(children.filter(\.isDirectory)) { child in
+                        FileNodeView(
+                            levelsNested: levelsNested + 1,
+                            onSelectFolder: onSelectFolder,
+                            node: child,
+                            selectedFolderID: selectedFolderID,
+                            selectedFolderPath: selectedFolderPath
+                        )
                     }
+                }
+            }
+            .onAppear {
+                if shouldAutoExpand {
+                    expanded = true
+                }
+            }
+            .onChange(of: selectedFolderPath) { _, _ in
+                if shouldAutoExpand {
+                    expanded = true
                 }
             }
         }
     }
-    
-    public mutating func setSelected(_ isSelected: Bool){
-        if (selected && isSelected && expanded)
-        {
-            expanded = false;
-        }
-        else
-        {
-            expanded = true
-        }
-        
-        selected = isSelected;
-    }
-    
-}
 
+    private var shouldAutoExpand: Bool {
+        guard let selectedFolderPath else {
+            return false
+        }
+        let nodePath = node.url.path
+        return selectedFolderPath == nodePath || selectedFolderPath.hasPrefix(nodePath + "/")
+    }
+}
 
 #Preview {
     if let documentsNode = loadFileNode(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!) {
-        FileNodeView(levelsNested: .constant(0), onSelectFolder:.constant(nil), node:documentsNode)
+        FileNodeView(levelsNested: 0, onSelectFolder: { _ in }, node: documentsNode, selectedFolderID: nil, selectedFolderPath: nil)
     }
 }
