@@ -280,6 +280,10 @@ struct EntityEditorView: View {
     }
 
     func saveEntity() {
+        if saveSelectedSceneNode() {
+            return
+        }
+
         guard let selectedEntityFileURL = GiskardApp.selectedEntityFileURL ?? GiskardApp.fileURL(for: entity.id) else {
             print("No entity file selected for saving.")
             return
@@ -299,6 +303,71 @@ struct EntityEditorView: View {
         } catch {
             print("Failed to save entity: \(error)")
         }
+    }
+
+    private func saveSelectedSceneNode() -> Bool {
+        guard let sceneURL = GiskardApp.selectedSceneFileURL,
+              let targetNodeID = GiskardApp.selectedSceneNodeID,
+              GiskardApp.selectedEntityFileURL == nil else {
+            return false
+        }
+
+        guard let data = FileSys.shared.ReadFile(sceneURL.path),
+              var sceneFile = try? JSONDecoder().decode(SceneFile.self, from: data) else {
+            print("[EntityEditor] saveSelectedSceneNode failed: cannot read/parse scene \(sceneURL.path)")
+            return false
+        }
+
+        guard updateSceneNode(in: &sceneFile.entities, targetNodeID: targetNodeID, from: entity) else {
+            print("[EntityEditor] saveSelectedSceneNode failed: node \(targetNodeID) not found")
+            return false
+        }
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            let encoded = try encoder.encode(sceneFile)
+            if FileSys.shared.WriteFile(sceneURL.path, data: encoded) {
+                isDirty = false
+                print("[EntityEditor] saveSelectedSceneNode write success scene=\(sceneURL.path) nodeID=\(targetNodeID)")
+                NotificationCenter.default.post(
+                    name: .sceneFileUpdated,
+                    object: nil,
+                    userInfo: ["sceneURL": sceneURL]
+                )
+                return true
+            } else {
+                print("[EntityEditor] saveSelectedSceneNode failed: write error \(sceneURL.path)")
+            }
+        } catch {
+            print("[EntityEditor] saveSelectedSceneNode failed: \(error)")
+        }
+
+        return false
+    }
+
+    private func updateSceneNode(in nodes: inout [SceneEntityNode], targetNodeID: UUID, from entity: Entity) -> Bool {
+        for index in nodes.indices {
+            if nodes[index].id == targetNodeID {
+                nodes[index].name = entity.name
+                nodes[index].isPhysical = entity.isPhysical
+                nodes[index].position = [entity.position.x, entity.position.y, entity.position.z]
+                nodes[index].rotation = [
+                    entity.rotation.vector.x,
+                    entity.rotation.vector.y,
+                    entity.rotation.vector.z,
+                    entity.rotation.vector.w
+                ]
+                nodes[index].capabilities = entity.capabilities
+                // Keep nested scene children authoritative in scene mode.
+                return true
+            }
+
+            if updateSceneNode(in: &nodes[index].children, targetNodeID: targetNodeID, from: entity) {
+                return true
+            }
+        }
+        return false
     }
     
     func update() async {
@@ -391,6 +460,10 @@ struct EntityEditorView: View {
             let pathString = pathNSString as String
 
             let fileURL = URL(fileURLWithPath: pathString)
+            guard fileURL.pathExtension.lowercased() == "entity" else {
+                print("[EntityEditor] drop failed: not an .entity file at \(fileURL.path)")
+                return
+            }
             guard let fileData = FileSys.shared.ReadFile(fileURL.path),
                   let droppedEntity = try? JSONDecoder().decode(Entity.self, from: fileData) else {
                 print("[EntityEditor] drop failed: cannot decode entity at \(fileURL.path)")
@@ -535,7 +608,7 @@ struct EntityEditorView: View {
             if unresolvedIDs.isEmpty {
                 break
             }
-            if fileURL.pathExtension.lowercased() != "json" {
+            if fileURL.pathExtension.lowercased() != "entity" {
                 continue
             }
             guard let data = FileSys.shared.ReadFile(fileURL.path) else {

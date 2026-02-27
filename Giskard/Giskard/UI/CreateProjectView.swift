@@ -61,6 +61,13 @@ struct CreateProjectView: View {
                     do
                     {
                         guard let baseURL = baseFolderURL else { return }
+                        let didStartBaseAccess = baseURL.startAccessingSecurityScopedResource()
+                        defer {
+                            if didStartBaseAccess {
+                                baseURL.stopAccessingSecurityScopedResource()
+                            }
+                        }
+
                         FileSys.shared.SetRootURL(url: baseURL)
                         let sanitizedProjectName = projectName.replacingOccurrences(of: " ", with: "")
                         let folderURL = baseURL.appendingPathComponent(sanitizedProjectName)
@@ -85,6 +92,17 @@ struct CreateProjectView: View {
                             // Write the settings file
                             let settingsURL = sanitizedProjectName + "/" + "Giskard_Project_Settings"
                             if (FileSys.shared.CreateFile(settingsURL, data:data)){
+                                let sceneEncoder = JSONEncoder()
+                                sceneEncoder.outputFormatting = .prettyPrinted
+                                let defaultScene = SceneFile.defaultScene(named: "\(projectName) Scene")
+                                let sceneData = try sceneEncoder.encode(defaultScene)
+                                let sceneURL = sanitizedProjectName + "/" + "Main.scene"
+                                guard FileSys.shared.CreateFile(sceneURL, data: sceneData) else {
+                                    print("Failed to create default .scene file")
+                                    return
+                                }
+                                // Ensure the freshly-created project can be reopened via Recent Projects immediately.
+                                GiskardApp.recordRecentProject(folderURL)
                                 GiskardApp.loadProject(projectInfo);
                                 
                                 dismiss()

@@ -35,20 +35,36 @@ class Entity: Codable{
                 capabilitiesInternal.append(capType)
             }
         }
+        registerExistingCapabilities()
     }
     
     public func AddCapability(capability: String){
+        guard !capabilities.contains(capability) else {
+            return
+        }
+
         capabilities.append(capability)
+        if let capType = CapabilitySystem.StringToCapability(capability) {
+            capabilitiesInternal.append(capType)
+        }
+        CapabilitySystem.AddCapability(capability, entity: self)
     }
     
     public func RemoveCapability(capability: String){
         if let index = capabilities.firstIndex(of: capability) {
             capabilities.remove(at: index)
         }
+        capabilitiesInternal.removeAll {
+            String(describing: $0) == capability
+        }
+        CapabilitySystem.RemoveCapability(capability, entity: self)
     }
     
     public func RemoveAllCapabilities(){
-        capabilities.removeAll()
+        let existingCapabilities = capabilities
+        for capability in existingCapabilities {
+            RemoveCapability(capability: capability)
+        }
     }
     
     // Internal facing
@@ -84,6 +100,7 @@ class Entity: Codable{
                 capabilitiesInternal.append(capType)
             }
         }
+        registerExistingCapabilities()
     }
 
     func encode(to encoder: Encoder) throws {
@@ -96,5 +113,11 @@ class Entity: Codable{
         try container.encode(children, forKey: .children)
         try container.encode(childEntityPaths, forKey: .childEntityPaths)
         try container.encode(capabilities, forKey: .capabilities)
+    }
+
+    private func registerExistingCapabilities() {
+        for capability in capabilities {
+            CapabilitySystem.AddCapability(capability, entity: self)
+        }
     }
 }

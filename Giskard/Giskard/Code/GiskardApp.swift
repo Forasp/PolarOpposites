@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import Spatial
 
 fileprivate extension Scene {
     func disableRestorationBehavior() -> some Scene {
@@ -28,6 +29,8 @@ struct GiskardApp: App {
     static var selectedEntities:[Entity] = []
     static var selectedEntityFileURL: URL? = nil
     static var selectedImageFileURL: URL? = nil
+    static var selectedSceneFileURL: URL? = nil
+    static var selectedSceneNodeID: UUID? = nil
     static var entityFileURLs: [UUID: URL] = [:]
     private static let recentProjectsDefaultsKey = "giskard.recentProjectPaths"
     private static let recentProjectsBookmarksKey = "giskard.recentProjectBookmarks"
@@ -100,6 +103,8 @@ struct GiskardApp: App {
             entityFileURLs[entity.id] = fileURL
         }
         selectedImageFileURL = nil
+        selectedSceneFileURL = nil
+        selectedSceneNodeID = nil
         selectedEntityFileURL = entityFileURLs[entity.id]
         selectedEntities.insert(entity, at: 0)
         mainInspectorType = .EntityInspector
@@ -130,6 +135,8 @@ struct GiskardApp: App {
 
     public static func selectImage(_ fileURL: URL) {
         selectedImageFileURL = fileURL
+        selectedSceneFileURL = nil
+        selectedSceneNodeID = nil
         selectedEntityFileURL = nil
         selectedEntities.removeAll()
         mainInspectorType = .ImageInspector
@@ -138,6 +145,82 @@ struct GiskardApp: App {
             object: nil,
             userInfo: ["inspectorType": InspectorTypes.ImageInspector.notificationValue]
         )
+    }
+
+    public static func selectScene(_ fileURL: URL) {
+        ensureMainSceneIfNeeded(selectedSceneURL: fileURL)
+        selectedSceneFileURL = fileURL
+        selectedSceneNodeID = nil
+        selectedImageFileURL = nil
+        selectedEntityFileURL = nil
+        selectedEntities.removeAll()
+        mainInspectorType = .SceneInspector
+        NotificationCenter.default.post(
+            name: .inspectorSelectionChanged,
+            object: nil,
+            userInfo: ["inspectorType": InspectorTypes.SceneInspector.notificationValue]
+        )
+    }
+
+    public static func selectSceneNode(_ node: SceneEntityNode, sceneURL: URL) {
+        selectedSceneFileURL = sceneURL
+        selectedSceneNodeID = node.id
+        selectedImageFileURL = nil
+        selectedEntityFileURL = nil
+
+        var entity = Entity(
+            node.name,
+            uuid: node.id,
+            physical: node.isPhysical,
+            child: node.children.map { $0.id },
+            caps: node.capabilities
+        )
+        if node.position.count > 0 { entity.position.x = node.position[0] }
+        if node.position.count > 1 { entity.position.y = node.position[1] }
+        if node.position.count > 2 { entity.position.z = node.position[2] }
+        if node.rotation.count > 0 { entity.rotation.vector.x = node.rotation[0] }
+        if node.rotation.count > 1 { entity.rotation.vector.y = node.rotation[1] }
+        if node.rotation.count > 2 { entity.rotation.vector.z = node.rotation[2] }
+        if node.rotation.count > 3 { entity.rotation.vector.w = node.rotation[3] }
+
+        selectedEntities.removeAll()
+        selectedEntities.insert(entity, at: 0)
+        mainInspectorType = .EntityInspector
+        NotificationCenter.default.post(
+            name: .inspectorSelectionChanged,
+            object: nil,
+            userInfo: ["inspectorType": InspectorTypes.EntityInspector.notificationValue]
+        )
+    }
+
+    private static func ensureMainSceneIfNeeded(selectedSceneURL: URL) {
+        guard let project = currentProject,
+              let projectRoot = project.projectPath else {
+            return
+        }
+
+        if let currentMainScene = project.mainScenePath, !currentMainScene.isEmpty {
+            return
+        }
+
+        let rootPath = projectRoot.standardizedFileURL.path
+        let selectedPath = selectedSceneURL.standardizedFileURL.path
+        guard selectedPath.hasPrefix(rootPath + "/") else {
+            return
+        }
+
+        let relativeScenePath = String(selectedPath.dropFirst(rootPath.count + 1))
+        project.mainScenePath = relativeScenePath
+        saveProjectSettings(project)
+    }
+
+    private static func saveProjectSettings(_ project: ProjectInformation) {
+        guard let projectRoot = project.projectPath else { return }
+        guard let settingsURL = findProjectSettingsFile(in: projectRoot) else { return }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        guard let data = try? encoder.encode(project) else { return }
+        _ = FileSys.shared.WriteFile(settingsURL.path, data: data)
     }
 
     public static func recentProjectURLs() -> [URL] {
@@ -156,12 +239,44 @@ struct GiskardApp: App {
         UserDefaults.standard.set(storedPaths, forKey: recentProjectsDefaultsKey)
 
         var bookmarks = UserDefaults.standard.dictionary(forKey: recentProjectsBookmarksKey) as? [String: Data] ?? [:]
-        if let bookmarkData = try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil) {
+        if let bookmarkData = createSecurityScopedBookmark(for: url) {
             bookmarks[normalizedPath] = bookmarkData
         }
         let validPathSet = Set(storedPaths)
         bookmarks = bookmarks.filter { validPathSet.contains($0.key) }
         UserDefaults.standard.set(bookmarks, forKey: recentProjectsBookmarksKey)
+    }
+
+    public static func removeRecentProject(_ url: URL) {
+        let normalizedPath = url.standardizedFileURL.path
+        var storedPaths = UserDefaults.standard.stringArray(forKey: recentProjectsDefaultsKey) ?? []
+        storedPaths.removeAll { $0 == normalizedPath }
+        UserDefaults.standard.set(storedPaths, forKey: recentProjectsDefaultsKey)
+
+        var bookmarks = UserDefaults.standard.dictionary(forKey: recentProjectsBookmarksKey) as? [String: Data] ?? [:]
+        bookmarks.removeValue(forKey: normalizedPath)
+        let validPathSet = Set(storedPaths)
+        bookmarks = bookmarks.filter { validPathSet.contains($0.key) }
+        UserDefaults.standard.set(bookmarks, forKey: recentProjectsBookmarksKey)
+    }
+
+    private static func createSecurityScopedBookmark(for url: URL) -> Data? {
+        if let directBookmark = try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil) {
+            return directBookmark
+        }
+
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard didStartAccessing else {
+            return nil
+        }
+
+        return try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
     }
 
     public static func resolveRecentProjectURL(_ url: URL) -> URL {
@@ -195,8 +310,14 @@ struct GiskardApp: App {
     public static func loadProjectFromDirectory(_ folderURL: URL) -> Bool {
         do {
             guard let settingsURL = findProjectSettingsFile(in: folderURL) else {
-                print("Selected folder is not a Giskard project: \(folderURL.path)")
                 return false
+            }
+
+            let didStartSettingsAccess = settingsURL.startAccessingSecurityScopedResource()
+            defer {
+                if didStartSettingsAccess {
+                    settingsURL.stopAccessingSecurityScopedResource()
+                }
             }
 
             let data = try Data(contentsOf: settingsURL)
@@ -205,7 +326,6 @@ struct GiskardApp: App {
             loadProject(project)
             return true
         } catch {
-            print("Failed to load project: \(error)")
             return false
         }
     }
@@ -220,11 +340,12 @@ struct GiskardApp: App {
             return nil
         }
 
-        return directoryItems.first { url in
+        let fallback = directoryItems.first { url in
             let name = url.lastPathComponent
             let isSettingsLikeName = name.hasPrefix("Giskard_Project")
             let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             return isSettingsLikeName && !isDirectory
         }
+        return fallback
     }
 }

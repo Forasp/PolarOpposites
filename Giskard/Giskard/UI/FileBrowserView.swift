@@ -11,10 +11,16 @@ import Foundation
 import UniformTypeIdentifiers
 
 struct FileBrowserView: View {
+    private enum CreateFileMode {
+        case entity
+        case scene
+    }
+
     @State private var selectedFolder: FileNode? = nil
     @State private var selectedFile: FileNode? = nil
-    @State private var showingNewEntityPrompt = false
-    @State private var newEntityName = ""
+    @State private var showingCreateNamePrompt = false
+    @State private var createFileMode: CreateFileMode = .entity
+    @State private var newFileName = ""
     var rootNode: FileNode
 
     var body: some View {
@@ -46,11 +52,8 @@ struct FileBrowserView: View {
                                     LazyVGrid(columns: columns, spacing: 24) {
                                         ForEach(items) { item in
                                             VStack {
-                                                Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fit)
-                                                    .frame(width: 40, height: 40)
-                                                Text(item.url.lastPathComponent)
+                                                fileIcon(for: item)
+                                                Text(displayLabel(for: item))
                                                     .font(.caption)
                                                     .lineLimit(1)
                                                     .frame(maxWidth: 72)
@@ -83,21 +86,39 @@ struct FileBrowserView: View {
                     Divider()
                     Divider()
                     HStack(alignment: .top) {
-                        Button(action: {
-                            newEntityName = ""
-                            showingNewEntityPrompt = true
-                        }) {
+                        Menu {
+                            Button("Scene") {
+                                createFileMode = .scene
+                                newFileName = ""
+                                showingCreateNamePrompt = true
+                            }
+                            Button("Entity") {
+                                createFileMode = .entity
+                                newFileName = ""
+                                showingCreateNamePrompt = true
+                            }
+                        } label: {
                             Image(systemName: "plus")
                                 .imageScale(.small)
                                 .padding(2)
                         }
-                        .help("Create an Entity")
+                        .help("Add")
                         Spacer()
                     }
-                    .alert("New Entity Name", isPresented: $showingNewEntityPrompt, actions: {
-                        TextField("Entity Name", text: $newEntityName)
+                    .alert(
+                        createFileMode == .entity ? "New Entity Name" : "New Scene Name",
+                        isPresented: $showingCreateNamePrompt,
+                        actions: {
+                        TextField(
+                            createFileMode == .entity ? "Entity Name" : "Scene Name",
+                            text: $newFileName
+                        )
                         Button("Create") {
-                            createNewEntityFile()
+                            if createFileMode == .entity {
+                                createNewEntityFile()
+                            } else {
+                                createNewSceneFile()
+                            }
                         }
                         Button("Cancel", role: .cancel) { }
                     })
@@ -114,7 +135,7 @@ struct FileBrowserView: View {
 
     public func createNewEntityFile() {
         guard let baseURL = selectedFolder?.url else { return }
-        let sanitizedEntityName = newEntityName.replacingOccurrences(of: " ", with: "") + ".json"
+        let sanitizedEntityName = newFileName.replacingOccurrences(of: " ", with: "") + ".entity"
 
         do {
             let emptyEntity: Entity = Entity(sanitizedEntityName)
@@ -135,8 +156,45 @@ struct FileBrowserView: View {
         }
     }
 
+    public func createNewSceneFile() {
+        guard let baseURL = selectedFolder?.url else { return }
+        let sanitizedSceneName = newFileName.replacingOccurrences(of: " ", with: "") + ".scene"
+
+        do {
+            let scene = SceneFile.defaultScene(named: sanitizedSceneName)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            let data = try encoder.encode(scene)
+
+            let fileURL = baseURL.appendingPathComponent(sanitizedSceneName)
+            if FileSys.shared.CreateFile(fileURL.absoluteString, data: data) {
+                selectedFolder?.children?.append(FileNode(url: fileURL, isDirectory: false))
+            } else {
+                print("Error writing scene file: \(fileURL.absoluteString)")
+            }
+        } catch {
+            print("Error writing scene file: \(error)")
+        }
+    }
+
     public func setSelectedFolder(_ node: FileNode) {
         selectedFolder = node
+    }
+
+    @ViewBuilder
+    private func fileIcon(for item: FileNode) -> some View {
+        if !item.isDirectory,
+           item.url.pathExtension.lowercased() == "entity" {
+            Image("EntityIcon")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 40, height: 40)
+        } else {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 40, height: 40)
+        }
     }
 
     private func activateItem(_ item: FileNode) {
@@ -153,6 +211,15 @@ struct FileBrowserView: View {
             return
         }
 
+        if item.url.pathExtension.lowercased() == "scene" {
+            GiskardApp.selectScene(item.url)
+            return
+        }
+
+        if item.url.pathExtension.lowercased() != "entity" {
+            return
+        }
+
         do {
             guard let data = FileSys.shared.ReadFile(item.url.path) else {
                 print("Failed to decode Entity: \(item.url.path)")
@@ -163,6 +230,16 @@ struct FileBrowserView: View {
         } catch {
             print("Failed to decode Entity: \(error)")
         }
+    }
+
+    private func displayLabel(for item: FileNode) -> String {
+        guard !item.isDirectory else {
+            return item.url.lastPathComponent
+        }
+        if item.url.pathExtension.lowercased() == "entity" {
+            return item.url.deletingPathExtension().lastPathComponent
+        }
+        return item.url.lastPathComponent
     }
 }
 

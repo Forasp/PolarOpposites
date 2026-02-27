@@ -15,6 +15,7 @@ class ProjectInformation: Codable {
     var projectPath: URL?
     var description: String?
     var creationDate: String?
+    var mainScenePath: String?
     
     // Clear Color Format RGBA
     var clearColor: [Double]? = [0.0, 0.0, 0.0, 1.0]
@@ -25,7 +26,8 @@ class ProjectInformation: Codable {
         projectAuthor: String? = nil,
         projectPath: URL? = nil,
         description: String? = nil,
-        creationDate: String? = nil
+        creationDate: String? = nil,
+        mainScenePath: String? = nil
     ) {
         self.projectVersion = projectVersion
         self.projectName = projectName
@@ -33,6 +35,7 @@ class ProjectInformation: Codable {
         self.projectPath = projectPath
         self.description = description
         self.creationDate = creationDate
+        self.mainScenePath = mainScenePath
     }
 
     public func toJSONData() throws -> Data {

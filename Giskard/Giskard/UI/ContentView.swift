@@ -11,6 +11,7 @@ import SwiftData
 enum InspectorTypes {
     case EntityInspector
     case ImageInspector
+    case SceneInspector
 
     init?(notificationValue: String) {
         switch notificationValue {
@@ -18,6 +19,8 @@ enum InspectorTypes {
             self = .EntityInspector
         case "image":
             self = .ImageInspector
+        case "scene":
+            self = .SceneInspector
         default:
             return nil
         }
@@ -29,6 +32,8 @@ enum InspectorTypes {
             return "entity"
         case .ImageInspector:
             return "image"
+        case .SceneInspector:
+            return "scene"
         }
     }
 }
@@ -46,6 +51,7 @@ struct ContentView: View {
     @State private var projectLoadedObserver: NSObjectProtocol?
     @State private var inspectorSelectionObserver: NSObjectProtocol?
     @State private var activeInspectorType: InspectorTypes = .EntityInspector
+    @State private var sceneExplorerHeight: CGFloat = 220
     
     func onProjectLoaded() {
         fileRoot = nil;
@@ -68,8 +74,7 @@ struct ContentView: View {
                     Text("No Project Loaded")
                 }
             } detail: {
-                SceneRenderView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                SceneWorkspaceView(sceneExplorerHeight: $sceneExplorerHeight)
             }
             .sheet(isPresented: $showCreateProjectSheet) {
                 CreateProjectView()
@@ -102,7 +107,7 @@ struct ContentView: View {
             }
             .fileImporter(
                 isPresented: $showOpenProjectPanel,
-                allowedContentTypes: [.folder], // or UTType.json if you prefer
+                allowedContentTypes: [.folder],
                 allowsMultipleSelection: false
             ) { result in
                 if case .success(let urls) = result, let url = urls.first {
@@ -125,6 +130,8 @@ struct ContentView: View {
                         EntityEditorView()
                     case InspectorTypes.ImageInspector:
                         ImageInspectorView()
+                    case InspectorTypes.SceneInspector:
+                        SceneInspectorView()
                     }
                 }
             }
@@ -153,6 +160,55 @@ struct ContentView: View {
     }
 }
 
+private struct SceneWorkspaceView: View {
+    @Binding var sceneExplorerHeight: CGFloat
+
+    private let dividerHeight: CGFloat = 8
+    private let minRendererHeight: CGFloat = 180
+    private let minExplorerHeight: CGFloat = 120
+    @State private var dragStartHeight: CGFloat?
+
+    var body: some View {
+        GeometryReader { geometry in
+            let totalHeight = geometry.size.height
+            let maxExplorerHeight = max(minExplorerHeight, totalHeight - dividerHeight - minRendererHeight)
+            let clampedExplorerHeight = min(max(sceneExplorerHeight, minExplorerHeight), maxExplorerHeight)
+            let rendererHeight = max(minRendererHeight, totalHeight - dividerHeight - clampedExplorerHeight)
+
+            VStack(spacing: 0) {
+                SceneRenderView()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: rendererHeight)
+
+                Rectangle()
+                    .fill(Color.white.opacity(0.16))
+                    .frame(height: dividerHeight)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 1)
+                            .onChanged { value in
+                                if dragStartHeight == nil {
+                                    dragStartHeight = clampedExplorerHeight
+                                }
+
+                                let startingHeight = dragStartHeight ?? clampedExplorerHeight
+                                let proposedHeight = startingHeight - value.translation.height
+                                sceneExplorerHeight = min(max(proposedHeight, minExplorerHeight), maxExplorerHeight)
+                            }
+                            .onEnded { _ in
+                                dragStartHeight = nil
+                            }
+                    )
+
+                SceneBrowserView()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: clampedExplorerHeight)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
 #Preview {
     ContentView(showCreateProjectSheet: .constant(false), currentProject: .constant(nil), showOpenProjectPanel: .constant(false), inspectorType: .constant(.EntityInspector))
         .modelContainer(for: Item.self, inMemory: true)
@@ -161,4 +217,5 @@ struct ContentView: View {
 extension Notification.Name {
     static let projectLoaded = Notification.Name("projectLoaded")
     static let inspectorSelectionChanged = Notification.Name("inspectorSelectionChanged")
+    static let sceneFileUpdated = Notification.Name("sceneFileUpdated")
 }

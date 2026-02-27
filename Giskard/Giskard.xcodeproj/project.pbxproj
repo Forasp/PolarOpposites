@@ -290,21 +290,6 @@
 		};
 /* End PBXTargetDependency section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		9A1F4C4E2F8B1A7300D10002 /* XCLocalSwiftPackageReference "GiskardVision" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = GiskardVision;
-		};
-/* End XCLocalSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		9A1F4C4E2F8B1A7300D10003 /* Renderer */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9A1F4C4E2F8B1A7300D10002 /* XCLocalSwiftPackageReference "GiskardVision" */;
-			productName = Renderer;
-		};
-/* End XCSwiftPackageProductDependency section */
-
 /* Begin XCBuildConfiguration section */
 		22571E632E261A27005B95BF /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -594,6 +579,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		9A1F4C4E2F8B1A7300D10002 /* XCLocalSwiftPackageReference "GiskardVision" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = GiskardVision;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9A1F4C4E2F8B1A7300D10003 /* Renderer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9A1F4C4E2F8B1A7300D10002 /* XCLocalSwiftPackageReference "GiskardVision" */;
+			productName = Renderer;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 22571E392E261A26005B95BF /* Project object */;
 }

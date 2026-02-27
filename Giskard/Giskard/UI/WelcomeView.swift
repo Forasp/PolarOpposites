@@ -59,6 +59,15 @@ struct WelcomeView: View {
 
     private func openProject(at url: URL) {
         let resolvedURL = GiskardApp.resolveRecentProjectURL(url)
+        guard FileManager.default.fileExists(atPath: resolvedURL.path) else {
+            GiskardApp.removeRecentProject(url)
+            if resolvedURL.standardizedFileURL.path != url.standardizedFileURL.path {
+                GiskardApp.removeRecentProject(resolvedURL)
+            }
+            recentProjects = Array(GiskardApp.recentProjectURLs().prefix(5))
+            return
+        }
+
         let didStartAccessing = resolvedURL.startAccessingSecurityScopedResource()
         defer {
             if didStartAccessing {
@@ -67,7 +76,8 @@ struct WelcomeView: View {
         }
 
         FileSys.shared.SetRootURL(url: resolvedURL)
-        if GiskardApp.loadProjectFromDirectory(resolvedURL) {
+        let didLoad = GiskardApp.loadProjectFromDirectory(resolvedURL)
+        if didLoad {
                 openWindow(id: "editor")
                 recentProjects = Array(GiskardApp.recentProjectURLs().prefix(5))
                 withTransaction(\.dismissBehavior, .destructive) {
