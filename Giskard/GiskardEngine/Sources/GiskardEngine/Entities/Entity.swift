@@ -8,9 +8,14 @@
 import Foundation
 import Spatial
 
-class Entity: Codable{
+public class Entity: Codable{
     // External Facing
-    public var id: UUID
+    public var fileUUID: UUID
+    public var instanceUUID: UUID
+    public var id: UUID {
+        get { instanceUUID }
+        set { instanceUUID = Entity.makeInstanceUUID(newValue, fileUUID: fileUUID) }
+    }
     public var name: String
     public var isPhysical: Bool
     public var position: Point3D
@@ -19,9 +24,11 @@ class Entity: Codable{
     public var childEntityPaths: [String] = []
     public var capabilities: [String] = []
     
-    public init(_ name: String, uuid: UUID = UUID(), physical: Bool = true, pos: Point3D = .zero, rot: Rotation3D = .identity, child:[UUID] = [], childPaths: [String] = [], caps: [String] = [])
+    public init(_ name: String, uuid: UUID = UUID(), fileUUID: UUID? = nil, physical: Bool = true, pos: Point3D = .zero, rot: Rotation3D = .identity, child:[UUID] = [], childPaths: [String] = [], caps: [String] = [])
     {
-        id = uuid
+        let resolvedFileUUID = fileUUID ?? UUID()
+        self.fileUUID = resolvedFileUUID
+        self.instanceUUID = Entity.makeInstanceUUID(uuid, fileUUID: resolvedFileUUID)
         self.name = name
         isPhysical = physical
         position = pos
@@ -74,6 +81,8 @@ class Entity: Codable{
     // Choose Encodable Properties
     enum CodingKeys: String, CodingKey {
         case id
+        case fileUUID
+        case instanceUUID
         case name
         case isPhysical
         case position
@@ -83,9 +92,12 @@ class Entity: Codable{
         case capabilities
     }
 
-    required init(from decoder: Decoder) throws {
+    public required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
+        let legacyID = try container.decodeIfPresent(UUID.self, forKey: .id)
+        fileUUID = try container.decodeIfPresent(UUID.self, forKey: .fileUUID) ?? legacyID ?? UUID()
+        let decodedInstanceUUID = try container.decodeIfPresent(UUID.self, forKey: .instanceUUID) ?? UUID()
+        instanceUUID = Entity.makeInstanceUUID(decodedInstanceUUID, fileUUID: fileUUID)
         name = try container.decode(String.self, forKey: .name)
         isPhysical = try container.decode(Bool.self, forKey: .isPhysical)
         position = try container.decode(Point3D.self, forKey: .position)
@@ -103,9 +115,11 @@ class Entity: Codable{
         registerExistingCapabilities()
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
+        try container.encode(fileUUID, forKey: .id)
+        try container.encode(fileUUID, forKey: .fileUUID)
+        try container.encode(instanceUUID, forKey: .instanceUUID)
         try container.encode(name, forKey: .name)
         try container.encode(isPhysical, forKey: .isPhysical)
         try container.encode(position, forKey: .position)
@@ -119,5 +133,16 @@ class Entity: Codable{
         for capability in capabilities {
             CapabilitySystem.AddCapability(capability, entity: self)
         }
+    }
+
+    private static func makeInstanceUUID(_ candidate: UUID, fileUUID: UUID) -> UUID {
+        if candidate != fileUUID {
+            return candidate
+        }
+        var generated = UUID()
+        while generated == fileUUID {
+            generated = UUID()
+        }
+        return generated
     }
 }

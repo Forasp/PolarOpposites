@@ -7,15 +7,15 @@
 
 import Foundation
 
-class Capability: Codable {
+open class Capability: Codable {
     
-    init(_ entityID: UUID, enabled: Bool = true) {
+    public init(_ entityID: UUID, enabled: Bool = true) {
         self.entity = entityID
         self.entityInstance = EntitySystem.getEntityById(entityID)
         self.enabled = enabled
     }
     
-    init(_ entity: Entity, enabled: Bool = true) {
+    public init(_ entity: Entity, enabled: Bool = true) {
         self.entityInstance = entity
         self.entity = entity.id
         self.enabled = enabled

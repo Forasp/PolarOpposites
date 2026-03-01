@@ -9,18 +9,23 @@ import SwiftUI
 import AppKit
 import Foundation
 import UniformTypeIdentifiers
+import GiskardEngine
 
 struct FileBrowserView: View {
-    private enum CreateFileMode {
+    private enum NamePromptAction {
         case entity
         case scene
+        case folder
+        case rename
     }
 
     @State private var selectedFolder: FileNode? = nil
     @State private var selectedFile: FileNode? = nil
-    @State private var showingCreateNamePrompt = false
-    @State private var createFileMode: CreateFileMode = .entity
+    @State private var showingNamePrompt = false
+    @State private var namePromptAction: NamePromptAction = .entity
+    @State private var renameTarget: FileNode? = nil
     @State private var newFileName = ""
+    @State private var copiedItemURL: URL? = nil
     var rootNode: FileNode
 
     var body: some View {
@@ -31,6 +36,15 @@ struct FileBrowserView: View {
                         FileNodeView(
                             levelsNested: 0,
                             onSelectFolder: setSelectedFolder,
+                            onCopyNode: { node in
+                                copyItem(node)
+                            },
+                            onRenameNode: { node in
+                                beginRenaming(node)
+                            },
+                            onDeleteNode: { node in
+                                deleteItem(node)
+                            },
                             node: rootNode,
                             selectedFolderID: selectedFolder?.id,
                             selectedFolderPath: selectedFolder?.url.path
@@ -38,6 +52,9 @@ struct FileBrowserView: View {
                     }
                     .listStyle(SidebarListStyle())
                     .frame(height: geo.size.height * 0.40)
+                    .contextMenu {
+                        emptySpaceContextMenu
+                    }
                     Divider()
                     Divider()
                     VStack(alignment: .leading) {
@@ -72,6 +89,18 @@ struct FileBrowserView: View {
                                             .onDrag {
                                                 NSItemProvider(object: item.url.path as NSString)
                                             }
+                                            .contextMenu {
+                                                Button("Copy") {
+                                                    copyItem(item)
+                                                }
+                                                Button("Rename") {
+                                                    beginRenaming(item)
+                                                }
+                                                Divider()
+                                                Button("Delete", role: .destructive) {
+                                                    deleteItem(item)
+                                                }
+                                            }
                                         }
                                     }
                                     .padding(.vertical, 8)
@@ -81,21 +110,24 @@ struct FileBrowserView: View {
                                     .foregroundColor(.gray)
                             }
                         }
+                        .contentShape(Rectangle())
+                        .contextMenu {
+                            emptySpaceContextMenu
+                        }
                     }
                     .frame(height: geo.size.height * 0.53)
                     Divider()
                     Divider()
                     HStack(alignment: .top) {
                         Menu {
+                            Button("Folder") {
+                                beginCreatingFolder()
+                            }
                             Button("Scene") {
-                                createFileMode = .scene
-                                newFileName = ""
-                                showingCreateNamePrompt = true
+                                beginCreatingScene()
                             }
                             Button("Entity") {
-                                createFileMode = .entity
-                                newFileName = ""
-                                showingCreateNamePrompt = true
+                                beginCreatingEntity()
                             }
                         } label: {
                             Image(systemName: "plus")
@@ -106,19 +138,15 @@ struct FileBrowserView: View {
                         Spacer()
                     }
                     .alert(
-                        createFileMode == .entity ? "New Entity Name" : "New Scene Name",
-                        isPresented: $showingCreateNamePrompt,
+                        namePromptTitle,
+                        isPresented: $showingNamePrompt,
                         actions: {
                         TextField(
-                            createFileMode == .entity ? "Entity Name" : "Scene Name",
+                            namePromptPlaceholder,
                             text: $newFileName
                         )
-                        Button("Create") {
-                            if createFileMode == .entity {
-                                createNewEntityFile()
-                            } else {
-                                createNewSceneFile()
-                            }
+                        Button(namePromptConfirmTitle) {
+                            performNamePromptAction()
                         }
                         Button("Cancel", role: .cancel) { }
                     })
@@ -135,7 +163,8 @@ struct FileBrowserView: View {
 
     public func createNewEntityFile() {
         guard let baseURL = selectedFolder?.url else { return }
-        let sanitizedEntityName = newFileName.replacingOccurrences(of: " ", with: "") + ".entity"
+        let sanitizedEntityName = sanitizedName(newFileName) + ".entity"
+        guard sanitizedEntityName != ".entity" else { return }
 
         do {
             let emptyEntity: Entity = Entity(sanitizedEntityName)
@@ -147,7 +176,7 @@ struct FileBrowserView: View {
 
             let fileURL = baseURL.appendingPathComponent(sanitizedEntityName)
             if FileSys.shared.CreateFile(fileURL.absoluteString, data: data) {
-                selectedFolder?.children?.append(FileNode(url: fileURL, isDirectory: false))
+                refreshTreePreservingSelection()
             } else {
                 print("Error writing entity file: \(fileURL.absoluteString)")
             }
@@ -158,7 +187,8 @@ struct FileBrowserView: View {
 
     public func createNewSceneFile() {
         guard let baseURL = selectedFolder?.url else { return }
-        let sanitizedSceneName = newFileName.replacingOccurrences(of: " ", with: "") + ".scene"
+        let sanitizedSceneName = sanitizedName(newFileName) + ".scene"
+        guard sanitizedSceneName != ".scene" else { return }
 
         do {
             let scene = SceneFile.defaultScene(named: sanitizedSceneName)
@@ -168,7 +198,7 @@ struct FileBrowserView: View {
 
             let fileURL = baseURL.appendingPathComponent(sanitizedSceneName)
             if FileSys.shared.CreateFile(fileURL.absoluteString, data: data) {
-                selectedFolder?.children?.append(FileNode(url: fileURL, isDirectory: false))
+                refreshTreePreservingSelection()
             } else {
                 print("Error writing scene file: \(fileURL.absoluteString)")
             }
@@ -179,6 +209,260 @@ struct FileBrowserView: View {
 
     public func setSelectedFolder(_ node: FileNode) {
         selectedFolder = node
+    }
+
+    private var emptySpaceContextMenu: some View {
+        Group {
+            Button("Paste") {
+                pasteIntoSelectedFolder()
+            }
+            .disabled(copiedItemURL == nil)
+
+            Divider()
+
+            Button("New Folder") {
+                beginCreatingFolder()
+            }
+            Button("New Scene") {
+                beginCreatingScene()
+            }
+            Button("New Entity") {
+                beginCreatingEntity()
+            }
+        }
+    }
+
+    private var namePromptTitle: String {
+        switch namePromptAction {
+        case .entity:
+            return "New Entity Name"
+        case .scene:
+            return "New Scene Name"
+        case .folder:
+            return "New Folder Name"
+        case .rename:
+            return "Rename Item"
+        }
+    }
+
+    private var namePromptPlaceholder: String {
+        switch namePromptAction {
+        case .entity:
+            return "Entity Name"
+        case .scene:
+            return "Scene Name"
+        case .folder:
+            return "Folder Name"
+        case .rename:
+            return "Item Name"
+        }
+    }
+
+    private var namePromptConfirmTitle: String {
+        switch namePromptAction {
+        case .rename:
+            return "Rename"
+        default:
+            return "Create"
+        }
+    }
+
+    private func beginCreatingEntity() {
+        namePromptAction = .entity
+        renameTarget = nil
+        newFileName = ""
+        showingNamePrompt = true
+    }
+
+    private func beginCreatingScene() {
+        namePromptAction = .scene
+        renameTarget = nil
+        newFileName = ""
+        showingNamePrompt = true
+    }
+
+    private func beginCreatingFolder() {
+        namePromptAction = .folder
+        renameTarget = nil
+        newFileName = ""
+        showingNamePrompt = true
+    }
+
+    private func beginRenaming(_ node: FileNode) {
+        namePromptAction = .rename
+        renameTarget = node
+        newFileName = node.url.deletingPathExtension().lastPathComponent
+        if node.isDirectory {
+            newFileName = node.url.lastPathComponent
+        }
+        showingNamePrompt = true
+    }
+
+    private func performNamePromptAction() {
+        switch namePromptAction {
+        case .entity:
+            createNewEntityFile()
+        case .scene:
+            createNewSceneFile()
+        case .folder:
+            createNewFolder()
+        case .rename:
+            applyRename()
+        }
+    }
+
+    private func createNewFolder() {
+        guard let baseURL = selectedFolder?.url else { return }
+        let name = sanitizedName(newFileName)
+        guard !name.isEmpty else { return }
+        let folderURL = baseURL.appendingPathComponent(name)
+        guard performSecuredFileOperation({
+            try FileManager.default.createDirectory(
+                at: folderURL,
+                withIntermediateDirectories: false
+            )
+        }) else {
+            return
+        }
+        refreshTreePreservingSelection()
+    }
+
+    private func copyItem(_ item: FileNode) {
+        copiedItemURL = item.url
+    }
+
+    private func pasteIntoSelectedFolder() {
+        guard let sourceURL = copiedItemURL else { return }
+        guard let targetFolder = selectedFolder?.url else { return }
+        let destinationURL = uniqueDestinationURL(
+            in: targetFolder,
+            forName: sourceURL.lastPathComponent
+        )
+        guard performSecuredFileOperation({
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        }) else {
+            return
+        }
+        refreshTreePreservingSelection()
+    }
+
+    private func deleteItem(_ item: FileNode) {
+        guard performSecuredFileOperation({
+            try FileManager.default.removeItem(at: item.url)
+        }) else {
+            return
+        }
+        if selectedFile?.url == item.url {
+            selectedFile = nil
+        }
+        refreshTreePreservingSelection()
+    }
+
+    private func applyRename() {
+        guard let target = renameTarget else { return }
+        let trimmed = newFileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let destinationName: String
+        if target.isDirectory {
+            destinationName = trimmed
+        } else {
+            let ext = target.url.pathExtension
+            if ext.isEmpty || trimmed.lowercased().hasSuffix(".\(ext.lowercased())") {
+                destinationName = trimmed
+            } else {
+                destinationName = "\(trimmed).\(ext)"
+            }
+        }
+
+        let destinationURL = target.url.deletingLastPathComponent().appendingPathComponent(destinationName)
+        guard destinationURL != target.url else { return }
+
+        guard performSecuredFileOperation({
+            try FileManager.default.moveItem(at: target.url, to: destinationURL)
+        }) else {
+            return
+        }
+        renameTarget = nil
+        refreshTreePreservingSelection()
+    }
+
+    private func uniqueDestinationURL(in folderURL: URL, forName name: String) -> URL {
+        var candidateURL = folderURL.appendingPathComponent(name)
+        if !FileManager.default.fileExists(atPath: candidateURL.path) {
+            return candidateURL
+        }
+
+        let sourceURL = URL(fileURLWithPath: name)
+        let baseName = sourceURL.deletingPathExtension().lastPathComponent
+        let ext = sourceURL.pathExtension
+        var suffix = 2
+
+        while true {
+            let candidateName: String
+            if ext.isEmpty {
+                candidateName = "\(baseName) \(suffix)"
+            } else {
+                candidateName = "\(baseName) \(suffix).\(ext)"
+            }
+            candidateURL = folderURL.appendingPathComponent(candidateName)
+            if !FileManager.default.fileExists(atPath: candidateURL.path) {
+                return candidateURL
+            }
+            suffix += 1
+        }
+    }
+
+    private func performSecuredFileOperation(_ operation: () throws -> Void) -> Bool {
+        let rootURL = rootNode.url
+        let didStartAccessing = rootURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                rootURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            try operation()
+            return true
+        } catch {
+            print("File operation failed: \(error)")
+            return false
+        }
+    }
+
+    private func refreshTreePreservingSelection() {
+        let selectedFolderPath = selectedFolder?.url.path
+        let selectedFilePath = selectedFile?.url.path
+
+        guard let refreshedRoot = loadFileNode(rootNode.url) else {
+            return
+        }
+        rootNode.children = refreshedRoot.children
+
+        selectedFolder = findNode(withPath: selectedFolderPath, in: rootNode) ?? rootNode
+        selectedFile = findNode(withPath: selectedFilePath, in: rootNode)
+    }
+
+    private func findNode(withPath path: String?, in node: FileNode) -> FileNode? {
+        guard let path else { return nil }
+        if node.url.path == path {
+            return node
+        }
+        guard let children = node.children else { return nil }
+        for child in children {
+            if let match = findNode(withPath: path, in: child) {
+                return match
+            }
+        }
+        return nil
+    }
+
+    private func sanitizedName(_ name: String) -> String {
+        name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "/", with: "")
+            .replacingOccurrences(of: ":", with: "")
     }
 
     @ViewBuilder

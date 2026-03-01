@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		9A1F4C4E2F8B1A7300D10001 /* Renderer in Frameworks */ = {isa = PBXBuildFile; productRef = 9A1F4C4E2F8B1A7300D10003 /* Renderer */; };
+		9B2F5D5F2F8B2B8400D20001 /* GiskardEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 9B2F5D5F2F8B2B8400D20003 /* GiskardEngine */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9B2F5D5F2F8B2B8400D20001 /* GiskardEngine in Frameworks */,
 				9A1F4C4E2F8B1A7300D10001 /* Renderer in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -130,6 +132,7 @@
 			);
 			name = Giskard;
 			packageProductDependencies = (
+				9B2F5D5F2F8B2B8400D20003 /* GiskardEngine */,
 				9A1F4C4E2F8B1A7300D10003 /* Renderer */,
 			);
 			productName = Giskard;
@@ -215,6 +218,7 @@
 			mainGroup = 22571E382E261A26005B95BF;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				9B2F5D5F2F8B2B8400D20002 /* XCLocalSwiftPackageReference "GiskardEngine" */,
 				9A1F4C4E2F8B1A7300D10002 /* XCLocalSwiftPackageReference "GiskardVision" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -585,6 +589,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = GiskardVision;
 		};
+		9B2F5D5F2F8B2B8400D20002 /* XCLocalSwiftPackageReference "GiskardEngine" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = GiskardEngine;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -592,6 +600,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9A1F4C4E2F8B1A7300D10002 /* XCLocalSwiftPackageReference "GiskardVision" */;
 			productName = Renderer;
+		};
+		9B2F5D5F2F8B2B8400D20003 /* GiskardEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B2F5D5F2F8B2B8400D20002 /* XCLocalSwiftPackageReference "GiskardEngine" */;
+			productName = GiskardEngine;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

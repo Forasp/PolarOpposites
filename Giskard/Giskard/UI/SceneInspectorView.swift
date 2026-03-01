@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import GiskardEngine
 
 struct SceneInspectorView: View {
     @State private var sceneURL: URL? = GiskardApp.selectedSceneFileURL

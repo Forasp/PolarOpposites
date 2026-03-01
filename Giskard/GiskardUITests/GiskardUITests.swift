@@ -32,6 +32,20 @@ final class GiskardUITests: XCTestCase {
     }
 
     @MainActor
+    func testEditorSmokeWorkflow_NoErrors() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--giskard-ui-automation")
+        app.launch()
+
+        let statusLabel = app.staticTexts["automationStatusText"]
+        XCTAssertTrue(statusLabel.waitForExistence(timeout: 120), "Automation status was never shown.")
+        XCTAssertTrue(
+            statusLabel.label.hasPrefix("AUTOMATION_SUCCESS"),
+            "Smoke scenario failed: \(statusLabel.label)"
+        )
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

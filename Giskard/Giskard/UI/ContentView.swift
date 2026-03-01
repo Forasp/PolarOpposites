@@ -52,6 +52,7 @@ struct ContentView: View {
     @State private var inspectorSelectionObserver: NSObjectProtocol?
     @State private var activeInspectorType: InspectorTypes = .EntityInspector
     @State private var sceneExplorerHeight: CGFloat = 220
+    @State private var automationStatus: String? = nil
     
     func onProjectLoaded() {
         fileRoot = nil;
@@ -82,6 +83,9 @@ struct ContentView: View {
             .onAppear {
                 onProjectLoaded()
                 activeInspectorType = GiskardApp.mainInspectorType
+                TestAutomationRunner.startIfNeeded { status in
+                    automationStatus = status
+                }
                 projectLoadedObserver = NotificationCenter.default.addObserver(forName: .projectLoaded, object: nil, queue: .main) { _ in
                     self.onProjectLoaded()
                 }
@@ -136,6 +140,15 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .overlay(alignment: .bottomLeading) {
+                if let automationStatus {
+                    Text(automationStatus)
+                        .font(.caption)
+                        .padding(8)
+                        .background(Color.black.opacity(0.2))
+                        .accessibilityIdentifier("automationStatusText")
+                }
+            }
         }
         .toolbar{
             Button(action: { showInspector.toggle() }) {

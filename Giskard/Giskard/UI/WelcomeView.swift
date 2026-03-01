@@ -10,6 +10,7 @@ import SwiftUI
 struct WelcomeView: View {
     @State private var showOpen = false
     @State private var recentProjects: [URL] = []
+    @State private var automationStatus: String? = nil
     @Binding var showCreateProjectSheet: Bool
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) var dismissWindow
@@ -45,10 +46,19 @@ struct WelcomeView: View {
                     .buttonStyle(.plain)
                 }
             }
+            if let automationStatus {
+                Divider()
+                Text(automationStatus)
+                    .font(.caption)
+                    .accessibilityIdentifier("automationStatusText")
+            }
         }
         .padding(40)
         .onAppear {
             recentProjects = Array(GiskardApp.recentProjectURLs().prefix(5))
+            TestAutomationRunner.startIfNeeded { status in
+                automationStatus = status
+            }
         }
         .fileImporter(isPresented: $showOpen, allowedContentTypes: [.folder], allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first {

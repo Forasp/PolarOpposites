@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import Spatial
+import GiskardEngine
 
 fileprivate extension Scene {
     func disableRestorationBehavior() -> some Scene {
@@ -100,12 +101,12 @@ struct GiskardApp: App {
     
     public static func selectEntity(_ entity: Entity, fileURL: URL? = nil) {
         if let fileURL {
-            entityFileURLs[entity.id] = fileURL
+            entityFileURLs[entity.fileUUID] = fileURL
         }
         selectedImageFileURL = nil
         selectedSceneFileURL = nil
         selectedSceneNodeID = nil
-        selectedEntityFileURL = entityFileURLs[entity.id]
+        selectedEntityFileURL = entityFileURLs[entity.fileUUID]
         selectedEntities.insert(entity, at: 0)
         mainInspectorType = .EntityInspector
         // Todo: update flag?
@@ -171,8 +172,9 @@ struct GiskardApp: App {
         var entity = Entity(
             node.name,
             uuid: node.id,
+            fileUUID: node.fileUUID,
             physical: node.isPhysical,
-            child: node.children.map { $0.id },
+            child: node.children.map { $0.fileUUID },
             caps: node.capabilities
         )
         if node.position.count > 0 { entity.position.x = node.position[0] }
@@ -303,8 +305,8 @@ struct GiskardApp: App {
         return resolvedURL
     }
 
-    public static func fileURL(for entityID: UUID) -> URL? {
-        entityFileURLs[entityID]
+    public static func fileURL(for entityFileUUID: UUID) -> URL? {
+        entityFileURLs[entityFileUUID]
     }
 
     public static func loadProjectFromDirectory(_ folderURL: URL) -> Bool {

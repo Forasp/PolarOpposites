@@ -7,8 +7,13 @@
 
 import Foundation
 
-class CapabilitySystem {
-    public static var AllCapabilities: [Capability.Type] = [Movable.self, Camera.self]
+public class CapabilitySystem {
+    public static var AllCapabilities: [Capability.Type] = [
+        Movable.self,
+        Camera.self,
+        Renderable2D.self,
+        Renderable3D.self,
+    ]
     private static var Entities: [String: [Entity]] = [:]
     
     public static func CapabilityToString<T: Capability>(_ capability: T.Type) -> String {
@@ -16,10 +21,11 @@ class CapabilitySystem {
     }
     
     public static func StringToCapability<T: Capability>(_ string: String) -> T.Type? {
-        (CapabilitySystem.AllCapabilities as [AnyObject.Type]).compactMap {
+        let normalized = GetCapabilityKey(for: string)
+        return (CapabilitySystem.AllCapabilities as [AnyObject.Type]).compactMap {
             $0 as? T.Type
         }.first {
-            String(describing: $0) == string
+            String(describing: $0) == normalized
         }
     }
 
