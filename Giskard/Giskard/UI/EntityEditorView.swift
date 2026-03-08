@@ -5,12 +5,13 @@
 //  Created by Timothy Powell on 7/28/25.
 //
 
-import SwiftUI
 import Spatial
+import SwiftUI
 import UniformTypeIdentifiers
+import GiskardEngine
 
 struct EntityEditorView: View {
-    @State var entity: Entity;
+    @State var entity: Entity
     @State private var isDirty: Bool = false
     @State private var pitch: Double = 0
     @State private var yaw: Double = 0
@@ -28,14 +29,12 @@ struct EntityEditorView: View {
     @State private var rotationYText: String = "0"
     @State private var rotationZText: String = "0"
     @State private var rotationWText: String = "0"
-    
+    @State private var scriptPaths: [String] = []
+
     init() {
-        if (GiskardApp.selectedEntities.count > 0)
-        {
+        if GiskardApp.selectedEntities.count > 0 {
             self.entity = GiskardApp.selectedEntities[0]
-        }
-        else
-        {
+        } else {
             self.entity = Entity("Sample Entity")
         }
         self.isDirty = false
@@ -48,9 +47,13 @@ struct EntityEditorView: View {
         self.childEntryDisplayValues = self.entity.childEntityPaths
         self.childEntryIDs = self.entity.children.map { Optional($0) }
         if self.childEntryDisplayValues.count < self.childEntryIDs.count {
-            self.childEntryDisplayValues.append(contentsOf: Array(repeating: "", count: self.childEntryIDs.count - self.childEntryDisplayValues.count))
+            self.childEntryDisplayValues.append(
+                contentsOf: Array(
+                    repeating: "",
+                    count: self.childEntryIDs.count - self.childEntryDisplayValues.count))
         } else if self.childEntryDisplayValues.count > self.childEntryIDs.count {
-            self.childEntryDisplayValues = Array(self.childEntryDisplayValues.prefix(self.childEntryIDs.count))
+            self.childEntryDisplayValues = Array(
+                self.childEntryDisplayValues.prefix(self.childEntryIDs.count))
         }
         self.positionXText = formatNumericText(self.entity.position.x)
         self.positionYText = formatNumericText(self.entity.position.y)
@@ -59,6 +62,7 @@ struct EntityEditorView: View {
         self.rotationYText = formatNumericText(self.entity.rotation.vector.y)
         self.rotationZText = formatNumericText(self.entity.rotation.vector.z)
         self.rotationWText = formatNumericText(self.entity.rotation.vector.w)
+        self.scriptPaths = self.entity.scriptPaths
     }
 
     var body: some View {
@@ -87,8 +91,8 @@ struct EntityEditorView: View {
                             .onChange(of: entity.name) { _, _ in isDirty = true }
                     }
                 }
-                
-                Section{
+
+                Section {
                     Text("Transform")
                     VStack(alignment: .leading) {
                         HStack(spacing: 8) {
@@ -105,7 +109,7 @@ struct EntityEditorView: View {
                                 entity.position.z = value
                             }
                         }
-                        
+
                         HStack(spacing: 8) {
                             Text("Rotation")
                                 .font(.system(size: 12))
@@ -124,7 +128,7 @@ struct EntityEditorView: View {
                             }
                         }
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Capabilities (Comma Separated)")
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -145,7 +149,8 @@ struct EntityEditorView: View {
                                     .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
                             )
                             .onChange(of: capabilityText) { _, newValue in
-                                let items = newValue
+                                let items =
+                                    newValue
                                     .split(separator: ",")
                                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                                     .filter { !$0.isEmpty }
@@ -156,70 +161,18 @@ struct EntityEditorView: View {
                                 isDirty = true
                             }
                     }
+
+                    ScriptAttachmentListView(
+                        title: "Scripts",
+                        emptyStateText: "Attach one or more .gs files to this entity.",
+                        scriptPaths: $scriptPaths,
+                        onChanged: {
+                        isDirty = true
+                        entity.scriptPaths = scriptPaths.filter { !$0.isEmpty }
+                        }
+                    )
                 }
 
-                Section {
-                    Text("Child Entities")
-                    HStack(spacing: 8) {
-                        Button(action: decrementChildCount) {
-                            Image(systemName: "minus")
-                        }
-                        .disabled(currentChildCount == 0)
-
-                        TextField("", text: $childCountText)
-                            .textFieldStyle(.plain)
-                            .controlSize(.small)
-                            .lineLimit(1)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .frame(width: 52, height: 24)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.secondary.opacity(0.12))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
-                            )
-                            .onChange(of: childCountText) { _, newValue in
-                                applyChildCountText(newValue)
-                            }
-
-                        Button(action: incrementChildCount) {
-                            Image(systemName: "plus")
-                        }
-                    }
-
-                    ForEach(childEntryDisplayValues.indices, id: \.self) { index in
-                        ZStack(alignment: .leading) {
-                            if childEntryDisplayValues[index].isEmpty {
-                                Text("Drop entity file here")
-                                    .foregroundColor(.secondary)
-                            }
-
-                            TextField("", text: bindingForChildDisplay(at: index))
-                                .textFieldStyle(.plain)
-                                .controlSize(.small)
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .frame(height: 24)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.secondary.opacity(0.12))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
-                        )
-                        .onDrop(of: [UTType.plainText.identifier], isTargeted: nil) { providers in
-                            handleChildEntityDrop(providers: providers, at: index)
-                        }
-                    }
-                }
             }
             .frame(alignment: .leading)
             .padding()
@@ -232,7 +185,7 @@ struct EntityEditorView: View {
                 .disabled(!isDirty)
             }
         }
-        .onAppear(){
+        .onAppear {
             // Ensure first open reflects current selection immediately.
             if let selected = GiskardApp.selectedEntities.first {
                 updateEntity(selected)
@@ -249,12 +202,15 @@ struct EntityEditorView: View {
             updateTask = nil
         }
     }
-    
-    
-    func updateEntity(_ entity:Entity) {
+
+    func updateEntity(_ entity: Entity) {
         self.entity = entity
         self.isDirty = false
-        GiskardApp.selectedEntityFileURL = GiskardApp.fileURL(for: entity.id)
+        if GiskardApp.selectedEntityContext == .file {
+            GiskardApp.selectedEntityFileURL = GiskardApp.fileURL(for: entity.fileUUID)
+        } else if GiskardApp.selectedEntityContext == .sceneNode {
+            GiskardApp.selectedEntityFileURL = nil
+        }
         self.pitch = self.entity.rotation.vector.x
         self.yaw = self.entity.rotation.vector.y
         self.roll = self.entity.rotation.vector.z
@@ -264,9 +220,13 @@ struct EntityEditorView: View {
         self.childEntryDisplayValues = self.entity.childEntityPaths
         self.childEntryIDs = self.entity.children.map { Optional($0) }
         if self.childEntryDisplayValues.count < self.childEntryIDs.count {
-            self.childEntryDisplayValues.append(contentsOf: Array(repeating: "", count: self.childEntryIDs.count - self.childEntryDisplayValues.count))
+            self.childEntryDisplayValues.append(
+                contentsOf: Array(
+                    repeating: "",
+                    count: self.childEntryIDs.count - self.childEntryDisplayValues.count))
         } else if self.childEntryDisplayValues.count > self.childEntryIDs.count {
-            self.childEntryDisplayValues = Array(self.childEntryDisplayValues.prefix(self.childEntryIDs.count))
+            self.childEntryDisplayValues = Array(
+                self.childEntryDisplayValues.prefix(self.childEntryIDs.count))
         }
         self.positionXText = formatNumericText(self.entity.position.x)
         self.positionYText = formatNumericText(self.entity.position.y)
@@ -275,12 +235,24 @@ struct EntityEditorView: View {
         self.rotationYText = formatNumericText(self.entity.rotation.vector.y)
         self.rotationZText = formatNumericText(self.entity.rotation.vector.z)
         self.rotationWText = formatNumericText(self.entity.rotation.vector.w)
-        print("[EntityEditor] updateEntity loaded id=\(entity.id) children=\(entity.children.map { $0.uuidString })")
+        self.scriptPaths = self.entity.scriptPaths
         refreshChildDisplayValuesFromIDs()
     }
 
     func saveEntity() {
-        guard let selectedEntityFileURL = GiskardApp.selectedEntityFileURL ?? GiskardApp.fileURL(for: entity.id) else {
+        entity.scriptPaths = scriptPaths.filter { !$0.isEmpty }
+        if GiskardApp.selectedEntityContext == .sceneNode {
+            if saveSelectedSceneNode() {
+                return
+            }
+            print("Failed to save selected scene node.")
+            return
+        }
+
+        guard
+            let selectedEntityFileURL = GiskardApp.selectedEntityFileURL
+                ?? GiskardApp.fileURL(for: entity.fileUUID)
+        else {
             print("No entity file selected for saving.")
             return
         }
@@ -289,10 +261,8 @@ struct EntityEditorView: View {
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(entity)
-            print("[EntityEditor] saveEntity path=\(selectedEntityFileURL.path) childCount=\(entity.children.count) children=\(entity.children.map { $0.uuidString })")
             if FileSys.shared.WriteFile(selectedEntityFileURL.path, data: data) {
                 isDirty = false
-                print("[EntityEditor] saveEntity write success")
             } else {
                 print("Failed to save entity: \(selectedEntityFileURL.path)")
             }
@@ -300,17 +270,141 @@ struct EntityEditorView: View {
             print("Failed to save entity: \(error)")
         }
     }
-    
+
+    private func saveSelectedSceneNode() -> Bool {
+        guard let sceneURL = GiskardApp.selectedSceneFileURL,
+            GiskardApp.selectedEntityContext == .sceneNode
+        else {
+            return false
+        }
+
+        guard let data = FileSys.shared.ReadFile(sceneURL.path),
+            var sceneFile = try? JSONDecoder().decode(SceneFile.self, from: data)
+        else {
+            return false
+        }
+
+        guard Self.updateSceneNode(
+            in: &sceneFile.entities,
+            targetNodeID: GiskardApp.selectedSceneNodeID,
+            targetNodeIndexPath: GiskardApp.selectedSceneNodeIndexPath,
+            from: entity
+        )
+        else {
+            return false
+        }
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            let encoded = try encoder.encode(sceneFile)
+            if FileSys.shared.WriteFile(sceneURL.path, data: encoded) {
+                isDirty = false
+                NotificationCenter.default.post(
+                    name: .sceneFileUpdated,
+                    object: nil,
+                    userInfo: ["sceneURL": sceneURL]
+                )
+                return true
+            }
+        } catch {
+        }
+
+        return false
+    }
+
+    static func updateSceneNode(
+        in nodes: inout [SceneEntityNode], targetNodeID: UUID, from entity: Entity
+    ) -> Bool {
+        updateSceneNode(
+            in: &nodes,
+            targetNodeID: Optional(targetNodeID),
+            targetNodeIndexPath: nil,
+            from: entity
+        )
+    }
+
+    static func updateSceneNode(
+        in nodes: inout [SceneEntityNode],
+        targetNodeID: UUID?,
+        targetNodeIndexPath: [Int]?,
+        from entity: Entity
+    ) -> Bool {
+        if let targetNodeID,
+           updateSceneNodeByID(in: &nodes, targetNodeID: targetNodeID, from: entity) {
+            return true
+        }
+
+        if let targetNodeIndexPath,
+           updateSceneNodeByIndexPath(in: &nodes, targetNodeIndexPath: targetNodeIndexPath, from: entity)
+        {
+            return true
+        }
+
+        return false
+    }
+
+    private static func updateSceneNodeByID(
+        in nodes: inout [SceneEntityNode], targetNodeID: UUID, from entity: Entity
+    ) -> Bool {
+        for index in nodes.indices {
+            if nodes[index].id == targetNodeID {
+                applyEntity(entity, to: &nodes[index])
+                return true
+            }
+
+            if updateSceneNodeByID(in: &nodes[index].children, targetNodeID: targetNodeID, from: entity)
+            {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func updateSceneNodeByIndexPath(
+        in nodes: inout [SceneEntityNode], targetNodeIndexPath: [Int], from entity: Entity
+    ) -> Bool {
+        guard let head = targetNodeIndexPath.first,
+              nodes.indices.contains(head) else {
+            return false
+        }
+
+        if targetNodeIndexPath.count == 1 {
+            applyEntity(entity, to: &nodes[head])
+            return true
+        }
+
+        return updateSceneNodeByIndexPath(
+            in: &nodes[head].children,
+            targetNodeIndexPath: Array(targetNodeIndexPath.dropFirst()),
+            from: entity
+        )
+    }
+
+    private static func applyEntity(_ entity: Entity, to node: inout SceneEntityNode) {
+        node.name = entity.name
+        node.isPhysical = entity.isPhysical
+        node.position = [entity.position.x, entity.position.y, entity.position.z]
+        node.rotation = [
+            entity.rotation.vector.x,
+            entity.rotation.vector.y,
+            entity.rotation.vector.z,
+            entity.rotation.vector.w,
+        ]
+        node.scriptPaths = entity.scriptPaths
+        node.capabilities = entity.capabilities
+    }
+
     func update() async {
         while !Task.isCancelled {
             do {
-                if (GiskardApp.selectedEntities.count > 0 && GiskardApp.selectedEntities[0].id != entity.id)
+                if GiskardApp.selectedEntities.count > 0
+                    && GiskardApp.selectedEntities[0].id != entity.id
                 {
                     updateEntity(GiskardApp.selectedEntities[0])
                 }
                 try await Task.sleep(for: .milliseconds(100))
-            }
-            catch {
+            } catch {
                 if Task.isCancelled {
                     return
                 }
@@ -374,40 +468,39 @@ struct EntityEditorView: View {
             return childEntryDisplayValues[index]
         }
         isDirty = true
-        print("[EntityEditor] syncChildrenFromEntries childCount=\(entity.children.count) children=\(entity.children.map { $0.uuidString }) childPaths=\(entity.childEntityPaths)")
     }
 
     private func handleChildEntityDrop(providers: [NSItemProvider], at index: Int) -> Bool {
-        guard let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else {
-            print("[EntityEditor] drop rejected: no provider")
+        guard let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) })
+        else {
             return false
         }
 
         provider.loadObject(ofClass: NSString.self) { object, _ in
             guard let pathNSString = object as? NSString else {
-                print("[EntityEditor] drop failed: object is not NSString")
                 return
             }
             let pathString = pathNSString as String
 
             let fileURL = URL(fileURLWithPath: pathString)
+            guard fileURL.pathExtension.lowercased() == "entity" else {
+                return
+            }
             guard let fileData = FileSys.shared.ReadFile(fileURL.path),
-                  let droppedEntity = try? JSONDecoder().decode(Entity.self, from: fileData) else {
-                print("[EntityEditor] drop failed: cannot decode entity at \(fileURL.path)")
+                let droppedEntity = try? JSONDecoder().decode(Entity.self, from: fileData)
+            else {
                 return
             }
 
             let relativePath = relativePathForChild(from: fileURL)
             let displayValue = "\(relativePath)"
-            print("[EntityEditor] drop success index=\(index) file=\(fileURL.path) relative=\(relativePath) droppedEntityID=\(droppedEntity.id)")
 
             DispatchQueue.main.async {
                 guard index < childEntryDisplayValues.count else {
-                    print("[EntityEditor] drop failed: index \(index) out of range")
                     return
                 }
                 childEntryDisplayValues[index] = displayValue
-                childEntryIDs[index] = droppedEntity.id
+                childEntryIDs[index] = droppedEntity.fileUUID
                 syncChildrenFromEntries()
             }
         }
@@ -427,7 +520,9 @@ struct EntityEditorView: View {
         return fileURL.lastPathComponent
     }
 
-    private func axisInput(label: String, text: Binding<String>, onValueChanged: @escaping (Double) -> Void) -> some View {
+    private func axisInput(
+        label: String, text: Binding<String>, onValueChanged: @escaping (Double) -> Void
+    ) -> some View {
         HStack(spacing: 2) {
             Text(label)
                 .font(.system(size: 10))
@@ -492,20 +587,15 @@ struct EntityEditorView: View {
 
     private func refreshChildDisplayValuesFromIDs() {
         let targetIDs = Set(childEntryIDs.compactMap { $0 })
-        print("[EntityEditor] refreshChildDisplayValuesFromIDs targetIDs=\(targetIDs.map { $0.uuidString })")
         guard !targetIDs.isEmpty else {
             childEntryDisplayValues = Array(repeating: "", count: childEntryIDs.count)
-            print("[EntityEditor] refreshChildDisplayValuesFromIDs no targets")
             return
         }
 
         // Prefer persisted paths when present (authoritative for this editor feature).
-        if entity.childEntityPaths.count == childEntryIDs.count && !entity.childEntityPaths.isEmpty {
+        if entity.childEntityPaths.count == childEntryIDs.count && !entity.childEntityPaths.isEmpty
+        {
             childEntryDisplayValues = entity.childEntityPaths
-            let unresolvedByPath = childEntryDisplayValues.enumerated().compactMap { index, path in
-                (path.isEmpty && index < childEntryIDs.count && childEntryIDs[index] != nil) ? childEntryIDs[index]?.uuidString : nil
-            }
-            print("[EntityEditor] refreshChildDisplayValuesFromIDs using persisted paths unresolved=\(unresolvedByPath)")
             return
         }
 
@@ -514,8 +604,6 @@ struct EntityEditorView: View {
             guard let id else { return "" }
             return pathIndex[id] ?? ""
         }
-        let unresolved = targetIDs.filter { pathIndex[$0] == nil }.map { $0.uuidString }
-        print("[EntityEditor] refreshChildDisplayValuesFromIDs resolved=\(pathIndex.mapValues { $0 }) unresolved=\(unresolved)")
     }
 
     private func buildEntityPathIndex(for ids: Set<UUID>) -> [UUID: String] {
@@ -526,8 +614,11 @@ struct EntityEditorView: View {
         var unresolvedIDs = ids
         var index: [UUID: String] = [:]
         let fileManager = FileManager.default
-        guard let enumerator = fileManager.enumerator(at: projectRoot, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
-            print("[EntityEditor] buildEntityPathIndex failed: cannot enumerate \(projectRoot.path)")
+        guard
+            let enumerator = fileManager.enumerator(
+                at: projectRoot, includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles])
+        else {
             return [:]
         }
 
@@ -535,27 +626,21 @@ struct EntityEditorView: View {
             if unresolvedIDs.isEmpty {
                 break
             }
-            if fileURL.pathExtension.lowercased() != "json" {
+            if fileURL.pathExtension.lowercased() != "entity" {
                 continue
             }
             guard let data = FileSys.shared.ReadFile(fileURL.path) else {
-                print("[EntityEditor] buildEntityPathIndex read failed \(fileURL.path)")
                 continue
             }
             guard let childEntity = try? JSONDecoder().decode(Entity.self, from: data) else {
                 continue
             }
-            guard unresolvedIDs.contains(childEntity.id) else {
+            guard unresolvedIDs.contains(childEntity.fileUUID) else {
                 continue
             }
 
-            index[childEntity.id] = relativePathForChild(from: fileURL)
-            unresolvedIDs.remove(childEntity.id)
-            print("[EntityEditor] buildEntityPathIndex matched id=\(childEntity.id) path=\(index[childEntity.id] ?? "")")
-        }
-
-        if !unresolvedIDs.isEmpty {
-            print("[EntityEditor] buildEntityPathIndex unresolved IDs=\(unresolvedIDs.map { $0.uuidString })")
+            index[childEntity.fileUUID] = relativePathForChild(from: fileURL)
+            unresolvedIDs.remove(childEntity.fileUUID)
         }
         return index
     }

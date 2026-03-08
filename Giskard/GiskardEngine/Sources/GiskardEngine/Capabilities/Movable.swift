@@ -8,7 +8,7 @@
 import Foundation
 import Spatial
 
-class Movable: Capability {
+public class Movable: Capability {
     public var velocity: Vector3D = .zero
     public var acceleration: Vector3D = .zero
 }

@@ -7,6 +7,14 @@
 
 import SwiftUI
 import SwiftData
+import Spatial
+import GiskardEngine
+
+enum EntitySelectionContext {
+    case none
+    case file
+    case sceneNode
+}
 
 fileprivate extension Scene {
     func disableRestorationBehavior() -> some Scene {
@@ -22,12 +30,19 @@ fileprivate extension Scene {
 struct GiskardApp: App {
     @State private var showCreateProjectSheet:Bool = false
     @State private var showOpenProjectPanel = false
+    private let debugRunManifestURL = GiskardApp.debugRunManifestURL()
+    private let isUIAutomationLaunch = ProcessInfo.processInfo.arguments.contains("--giskard-ui-automation")
     private static var currentProject: ProjectInformation? = nil  // Holds the current project, nil by default
     static var mainInspectorType:InspectorTypes = InspectorTypes.EntityInspector
     @State var updater: Bool = false
     static var selectedEntities:[Entity] = []
     static var selectedEntityFileURL: URL? = nil
+    static var selectedEntityContext: EntitySelectionContext = .none
     static var selectedImageFileURL: URL? = nil
+    static var selectedScriptFileURL: URL? = nil
+    static var selectedSceneFileURL: URL? = nil
+    static var selectedSceneNodeID: UUID? = nil
+    static var selectedSceneNodeIndexPath: [Int]? = nil
     static var entityFileURLs: [UUID: URL] = [:]
     private static let recentProjectsDefaultsKey = "giskard.recentProjectPaths"
     private static let recentProjectsBookmarksKey = "giskard.recentProjectBookmarks"
@@ -46,15 +61,26 @@ struct GiskardApp: App {
     }()
 
     var body: some Scene {
-        // Welcome first
-        WindowGroup("Welcome", id: "welcome") {
-            WelcomeView(showCreateProjectSheet:$showCreateProjectSheet)
+        WindowGroup(primaryWindowTitle, id: "welcome") {
+            if let debugRunManifestURL {
+                DebugRunView(manifestURL: debugRunManifestURL)
+            } else if isUIAutomationLaunch {
+                ContentView(showCreateProjectSheet:$showCreateProjectSheet,
+                            currentProject: .constant(GiskardApp.currentProject), showOpenProjectPanel:$showOpenProjectPanel, inspectorType: .constant(GiskardApp.mainInspectorType))
+            } else {
+                WelcomeView(showCreateProjectSheet:$showCreateProjectSheet)
+            }
         }
         .disableRestorationBehavior()
-        
+        .modelContainer(sharedModelContainer)
+
         WindowGroup("Editor", id: "editor") {
-            ContentView(showCreateProjectSheet:$showCreateProjectSheet,
-                        currentProject: .constant(GiskardApp.currentProject), showOpenProjectPanel:$showOpenProjectPanel, inspectorType: .constant(GiskardApp.mainInspectorType))
+            if debugRunManifestURL == nil && !isUIAutomationLaunch {
+                ContentView(showCreateProjectSheet:$showCreateProjectSheet,
+                            currentProject: .constant(GiskardApp.currentProject), showOpenProjectPanel:$showOpenProjectPanel, inspectorType: .constant(GiskardApp.mainInspectorType))
+            } else {
+                EmptyView()
+            }
         }
         .disableRestorationBehavior()
         .modelContainer(sharedModelContainer)
@@ -76,10 +102,21 @@ struct GiskardApp: App {
             }
         }
     }
+
+    private var primaryWindowTitle: String {
+        if debugRunManifestURL != nil {
+            return "Debug Run"
+        }
+        if isUIAutomationLaunch {
+            return "Editor"
+        }
+        return "Welcome"
+    }
     
     public static func loadProject(_ project: ProjectInformation) {
         // TODO : Handle case where there's an existing project.
         currentProject = project;
+        EditorProjectSupport.ensureBuildConfigurationExists(for: project)
         if let projectPath = project.projectPath {
             recordRecentProject(projectPath)
         }
@@ -97,10 +134,15 @@ struct GiskardApp: App {
     
     public static func selectEntity(_ entity: Entity, fileURL: URL? = nil) {
         if let fileURL {
-            entityFileURLs[entity.id] = fileURL
+            entityFileURLs[entity.fileUUID] = fileURL
         }
         selectedImageFileURL = nil
-        selectedEntityFileURL = entityFileURLs[entity.id]
+        selectedScriptFileURL = nil
+        selectedSceneFileURL = nil
+        selectedSceneNodeID = nil
+        selectedSceneNodeIndexPath = nil
+        selectedEntityContext = .file
+        selectedEntityFileURL = entityFileURLs[entity.fileUUID]
         selectedEntities.insert(entity, at: 0)
         mainInspectorType = .EntityInspector
         // Todo: update flag?
@@ -121,7 +163,9 @@ struct GiskardApp: App {
             if (selectedEntities[i].id == entity.id) {
                 selectedEntities.remove(at: i)
                 if selectedEntities.isEmpty {
+                    selectedEntityContext = .none
                     selectedEntityFileURL = nil
+                    selectedSceneNodeIndexPath = nil
                 }
                 return
             }
@@ -130,6 +174,11 @@ struct GiskardApp: App {
 
     public static func selectImage(_ fileURL: URL) {
         selectedImageFileURL = fileURL
+        selectedScriptFileURL = nil
+        selectedSceneFileURL = nil
+        selectedSceneNodeID = nil
+        selectedSceneNodeIndexPath = nil
+        selectedEntityContext = .none
         selectedEntityFileURL = nil
         selectedEntities.removeAll()
         mainInspectorType = .ImageInspector
@@ -138,6 +187,128 @@ struct GiskardApp: App {
             object: nil,
             userInfo: ["inspectorType": InspectorTypes.ImageInspector.notificationValue]
         )
+    }
+
+    public static func selectScene(_ fileURL: URL) {
+        ensureMainSceneIfNeeded(selectedSceneURL: fileURL)
+        selectedSceneFileURL = fileURL
+        selectedSceneNodeID = nil
+        selectedSceneNodeIndexPath = nil
+        selectedImageFileURL = nil
+        selectedScriptFileURL = nil
+        selectedEntityContext = .none
+        selectedEntityFileURL = nil
+        selectedEntities.removeAll()
+        mainInspectorType = .SceneInspector
+        NotificationCenter.default.post(
+            name: .inspectorSelectionChanged,
+            object: nil,
+            userInfo: ["inspectorType": InspectorTypes.SceneInspector.notificationValue]
+        )
+    }
+
+    public static func selectSceneNode(
+        _ node: SceneEntityNode,
+        sceneURL: URL
+    ) {
+        selectSceneNode(node, sceneURL: sceneURL, indexPath: nil)
+    }
+
+    public static func selectSceneNode(
+        _ node: SceneEntityNode,
+        sceneURL: URL,
+        indexPath: [Int]? = nil
+    ) {
+        selectedSceneFileURL = sceneURL
+        selectedSceneNodeID = node.id
+        selectedSceneNodeIndexPath = indexPath
+        selectedImageFileURL = nil
+        selectedScriptFileURL = nil
+        selectedEntityContext = .sceneNode
+        selectedEntityFileURL = nil
+
+        var entity = Entity(
+            node.name,
+            uuid: node.id,
+            fileUUID: node.fileUUID,
+            physical: node.isPhysical,
+            child: node.children.map { $0.fileUUID },
+            scriptPaths: node.scriptPaths,
+            caps: node.capabilities
+        )
+        if node.position.count > 0 { entity.position.x = node.position[0] }
+        if node.position.count > 1 { entity.position.y = node.position[1] }
+        if node.position.count > 2 { entity.position.z = node.position[2] }
+        if node.rotation.count > 0 { entity.rotation.vector.x = node.rotation[0] }
+        if node.rotation.count > 1 { entity.rotation.vector.y = node.rotation[1] }
+        if node.rotation.count > 2 { entity.rotation.vector.z = node.rotation[2] }
+        if node.rotation.count > 3 { entity.rotation.vector.w = node.rotation[3] }
+
+        selectedEntities.removeAll()
+        selectedEntities.insert(entity, at: 0)
+        mainInspectorType = .EntityInspector
+        NotificationCenter.default.post(
+            name: .inspectorSelectionChanged,
+            object: nil,
+            userInfo: ["inspectorType": InspectorTypes.EntityInspector.notificationValue]
+        )
+    }
+
+    public static func selectScript(_ fileURL: URL) {
+        selectedScriptFileURL = fileURL
+        selectedImageFileURL = nil
+        selectedSceneFileURL = nil
+        selectedSceneNodeID = nil
+        selectedSceneNodeIndexPath = nil
+        selectedEntityContext = .none
+        selectedEntityFileURL = nil
+        selectedEntities.removeAll()
+        mainInspectorType = .ScriptInspector
+        NotificationCenter.default.post(
+            name: .inspectorSelectionChanged,
+            object: nil,
+            userInfo: ["inspectorType": InspectorTypes.ScriptInspector.notificationValue]
+        )
+    }
+
+    private static func ensureMainSceneIfNeeded(selectedSceneURL: URL) {
+        guard let project = currentProject,
+              let projectRoot = project.projectPath else {
+            return
+        }
+
+        if let currentMainScene = project.mainScenePath, !currentMainScene.isEmpty {
+            return
+        }
+
+        let rootPath = projectRoot.standardizedFileURL.path
+        let selectedPath = selectedSceneURL.standardizedFileURL.path
+        guard selectedPath.hasPrefix(rootPath + "/") else {
+            return
+        }
+
+        let relativeScenePath = String(selectedPath.dropFirst(rootPath.count + 1))
+        project.mainScenePath = relativeScenePath
+        persistCurrentProjectSettings()
+
+        var buildConfiguration = EditorProjectSupport.loadBuildConfiguration(project: project)
+        if !buildConfiguration.includedScenePaths.contains(relativeScenePath) {
+            buildConfiguration.includedScenePaths.append(relativeScenePath)
+        }
+        if buildConfiguration.entryScenePath == nil {
+            buildConfiguration.entryScenePath = relativeScenePath
+        }
+        _ = EditorProjectSupport.saveBuildConfiguration(buildConfiguration, for: project)
+    }
+
+    public static func persistCurrentProjectSettings() {
+        guard let project = currentProject else { return }
+        guard let projectRoot = project.projectPath else { return }
+        guard let settingsURL = findProjectSettingsFile(in: projectRoot) else { return }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        guard let data = try? encoder.encode(project) else { return }
+        _ = FileSys.shared.WriteFile(settingsURL.path, data: data)
     }
 
     public static func recentProjectURLs() -> [URL] {
@@ -156,12 +327,44 @@ struct GiskardApp: App {
         UserDefaults.standard.set(storedPaths, forKey: recentProjectsDefaultsKey)
 
         var bookmarks = UserDefaults.standard.dictionary(forKey: recentProjectsBookmarksKey) as? [String: Data] ?? [:]
-        if let bookmarkData = try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil) {
+        if let bookmarkData = createSecurityScopedBookmark(for: url) {
             bookmarks[normalizedPath] = bookmarkData
         }
         let validPathSet = Set(storedPaths)
         bookmarks = bookmarks.filter { validPathSet.contains($0.key) }
         UserDefaults.standard.set(bookmarks, forKey: recentProjectsBookmarksKey)
+    }
+
+    public static func removeRecentProject(_ url: URL) {
+        let normalizedPath = url.standardizedFileURL.path
+        var storedPaths = UserDefaults.standard.stringArray(forKey: recentProjectsDefaultsKey) ?? []
+        storedPaths.removeAll { $0 == normalizedPath }
+        UserDefaults.standard.set(storedPaths, forKey: recentProjectsDefaultsKey)
+
+        var bookmarks = UserDefaults.standard.dictionary(forKey: recentProjectsBookmarksKey) as? [String: Data] ?? [:]
+        bookmarks.removeValue(forKey: normalizedPath)
+        let validPathSet = Set(storedPaths)
+        bookmarks = bookmarks.filter { validPathSet.contains($0.key) }
+        UserDefaults.standard.set(bookmarks, forKey: recentProjectsBookmarksKey)
+    }
+
+    private static func createSecurityScopedBookmark(for url: URL) -> Data? {
+        if let directBookmark = try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil) {
+            return directBookmark
+        }
+
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard didStartAccessing else {
+            return nil
+        }
+
+        return try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
     }
 
     public static func resolveRecentProjectURL(_ url: URL) -> URL {
@@ -188,15 +391,21 @@ struct GiskardApp: App {
         return resolvedURL
     }
 
-    public static func fileURL(for entityID: UUID) -> URL? {
-        entityFileURLs[entityID]
+    public static func fileURL(for entityFileUUID: UUID) -> URL? {
+        entityFileURLs[entityFileUUID]
     }
 
     public static func loadProjectFromDirectory(_ folderURL: URL) -> Bool {
         do {
             guard let settingsURL = findProjectSettingsFile(in: folderURL) else {
-                print("Selected folder is not a Giskard project: \(folderURL.path)")
                 return false
+            }
+
+            let didStartSettingsAccess = settingsURL.startAccessingSecurityScopedResource()
+            defer {
+                if didStartSettingsAccess {
+                    settingsURL.stopAccessingSecurityScopedResource()
+                }
             }
 
             let data = try Data(contentsOf: settingsURL)
@@ -205,7 +414,6 @@ struct GiskardApp: App {
             loadProject(project)
             return true
         } catch {
-            print("Failed to load project: \(error)")
             return false
         }
     }
@@ -220,11 +428,21 @@ struct GiskardApp: App {
             return nil
         }
 
-        return directoryItems.first { url in
+        let fallback = directoryItems.first { url in
             let name = url.lastPathComponent
             let isSettingsLikeName = name.hasPrefix("Giskard_Project")
             let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             return isSettingsLikeName && !isDirectory
         }
+        return fallback
+    }
+
+    private static func debugRunManifestURL() -> URL? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "--giskard-debug-run-manifest"),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return URL(fileURLWithPath: arguments[index + 1])
     }
 }

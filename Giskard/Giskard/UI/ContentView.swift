@@ -7,10 +7,13 @@
 
 import SwiftUI
 import SwiftData
+import Renderer
 
 enum InspectorTypes {
     case EntityInspector
     case ImageInspector
+    case SceneInspector
+    case ScriptInspector
 
     init?(notificationValue: String) {
         switch notificationValue {
@@ -18,6 +21,10 @@ enum InspectorTypes {
             self = .EntityInspector
         case "image":
             self = .ImageInspector
+        case "scene":
+            self = .SceneInspector
+        case "script":
+            self = .ScriptInspector
         default:
             return nil
         }
@@ -29,6 +36,10 @@ enum InspectorTypes {
             return "entity"
         case .ImageInspector:
             return "image"
+        case .SceneInspector:
+            return "scene"
+        case .ScriptInspector:
+            return "script"
         }
     }
 }
@@ -46,6 +57,11 @@ struct ContentView: View {
     @State private var projectLoadedObserver: NSObjectProtocol?
     @State private var inspectorSelectionObserver: NSObjectProtocol?
     @State private var activeInspectorType: InspectorTypes = .EntityInspector
+    @State private var sceneExplorerHeight: CGFloat = 220
+    @State private var automationStatus: String? = nil
+    @State private var buildStatus: String? = nil
+    @State private var showBuildSettingsSheet = false
+    @State private var buildSettingsRequestedObserver: NSObjectProtocol?
     
     func onProjectLoaded() {
         fileRoot = nil;
@@ -68,15 +84,22 @@ struct ContentView: View {
                     Text("No Project Loaded")
                 }
             } detail: {
-                SceneRenderView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                SceneWorkspaceView(sceneExplorerHeight: $sceneExplorerHeight)
             }
             .sheet(isPresented: $showCreateProjectSheet) {
                 CreateProjectView()
             }
+            .sheet(isPresented: $showBuildSettingsSheet) {
+                BuildSettingsView { status in
+                    buildStatus = status
+                }
+            }
             .onAppear {
                 onProjectLoaded()
                 activeInspectorType = GiskardApp.mainInspectorType
+                TestAutomationRunner.startIfNeeded { status in
+                    automationStatus = status
+                }
                 projectLoadedObserver = NotificationCenter.default.addObserver(forName: .projectLoaded, object: nil, queue: .main) { _ in
                     self.onProjectLoaded()
                 }
@@ -89,6 +112,9 @@ struct ContentView: View {
                     }
                     self.showInspector = true
                 }
+                buildSettingsRequestedObserver = NotificationCenter.default.addObserver(forName: .buildSettingsRequested, object: nil, queue: .main) { _ in
+                    self.showBuildSettingsSheet = true
+                }
             }
             .onDisappear {
                 if let observer = projectLoadedObserver {
@@ -99,10 +125,14 @@ struct ContentView: View {
                     NotificationCenter.default.removeObserver(observer)
                     inspectorSelectionObserver = nil
                 }
+                if let observer = buildSettingsRequestedObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    buildSettingsRequestedObserver = nil
+                }
             }
             .fileImporter(
                 isPresented: $showOpenProjectPanel,
-                allowedContentTypes: [.folder], // or UTType.json if you prefer
+                allowedContentTypes: [.folder],
                 allowsMultipleSelection: false
             ) { result in
                 if case .success(let urls) = result, let url = urls.first {
@@ -125,15 +155,64 @@ struct ContentView: View {
                         EntityEditorView()
                     case InspectorTypes.ImageInspector:
                         ImageInspectorView()
+                    case InspectorTypes.SceneInspector:
+                        SceneInspectorView()
+                    case InspectorTypes.ScriptInspector:
+                        ScriptEditorView()
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .overlay(alignment: .bottomLeading) {
+                if let status = buildStatus ?? automationStatus {
+                    Text(status)
+                        .font(.caption)
+                        .padding(8)
+                        .background(Color.black.opacity(0.2))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityIdentifier(buildStatus == nil ? "automationStatusText" : "buildStatusText")
+                }
+            }
         }
         .toolbar{
             Button(action: { showInspector.toggle() }) {
                 Label("Toggle Inspector", systemImage: "sidebar.right")
             }
+            Button(action: { showBuildSettingsSheet = true }) {
+                Label("Build Settings", systemImage: "gearshape.2")
+            }
+            Button(action: launchDebugRun) {
+                Label("Debug Run", systemImage: "play.circle")
+            }
+        }
+    }
+
+    private func launchDebugRun() {
+        guard let projectRoot = GiskardApp.getProject().projectPath else {
+            buildStatus = "Load a project before running a debug build."
+            return
+        }
+
+        let project = GiskardApp.getProject()
+
+        do {
+            let plan = try EditorProjectSupport.makeDebugRunLaunchPlan(
+                project: project,
+                bundleURL: Bundle.main.bundleURL
+            )
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = ["-n", Bundle.main.bundleURL.path, "--args"] + plan.arguments
+            try process.run()
+
+            let relativeManifestPath = EditorProjectSupport.relativeProjectPath(
+                for: plan.manifestURL,
+                projectRoot: projectRoot
+            ) ?? plan.manifestURL.lastPathComponent
+            buildStatus = "Debug run launched using \(relativeManifestPath)."
+        } catch {
+            buildStatus = error.localizedDescription
         }
     }
 
@@ -153,6 +232,74 @@ struct ContentView: View {
     }
 }
 
+private struct SceneWorkspaceView: View {
+    @Binding var sceneExplorerHeight: CGFloat
+
+    private let dividerHeight: CGFloat = 8
+    private let minRendererHeight: CGFloat = 180
+    private let minExplorerHeight: CGFloat = 120
+    @State private var dragStartHeight: CGFloat?
+    @State private var renderDiagnostics = RendererFrameSnapshot()
+
+    private var renderDiagnosticsText: String {
+        let cameraValue = renderDiagnostics.hasCameraCommand ? "yes" : "no"
+        let issueCount = renderDiagnostics.issues.count
+        return "Render 2D=\(renderDiagnostics.renderable2DCount) 3D=\(renderDiagnostics.renderable3DCount) camera=\(cameraValue) issues=\(issueCount)"
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let totalHeight = geometry.size.height
+            let maxExplorerHeight = max(minExplorerHeight, totalHeight - dividerHeight - minRendererHeight)
+            let clampedExplorerHeight = min(max(sceneExplorerHeight, minExplorerHeight), maxExplorerHeight)
+            let rendererHeight = max(minRendererHeight, totalHeight - dividerHeight - clampedExplorerHeight)
+
+            VStack(spacing: 0) {
+                SceneRenderView { snapshot in
+                    renderDiagnostics = snapshot
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: rendererHeight)
+                .overlay(alignment: .topLeading) {
+                    Text(renderDiagnosticsText)
+                        .font(.caption.monospaced())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.28))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityIdentifier("renderDiagnosticsText")
+                        .padding(8)
+                }
+
+                Rectangle()
+                    .fill(Color.white.opacity(0.16))
+                    .frame(height: dividerHeight)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 1)
+                            .onChanged { value in
+                                if dragStartHeight == nil {
+                                    dragStartHeight = clampedExplorerHeight
+                                }
+
+                                let startingHeight = dragStartHeight ?? clampedExplorerHeight
+                                let proposedHeight = startingHeight - value.translation.height
+                                sceneExplorerHeight = min(max(proposedHeight, minExplorerHeight), maxExplorerHeight)
+                            }
+                            .onEnded { _ in
+                                dragStartHeight = nil
+                            }
+                    )
+
+                SceneBrowserView()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: clampedExplorerHeight)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
 #Preview {
     ContentView(showCreateProjectSheet: .constant(false), currentProject: .constant(nil), showOpenProjectPanel: .constant(false), inspectorType: .constant(.EntityInspector))
         .modelContainer(for: Item.self, inMemory: true)
@@ -161,4 +308,6 @@ struct ContentView: View {
 extension Notification.Name {
     static let projectLoaded = Notification.Name("projectLoaded")
     static let inspectorSelectionChanged = Notification.Name("inspectorSelectionChanged")
+    static let sceneFileUpdated = Notification.Name("sceneFileUpdated")
+    static let buildSettingsRequested = Notification.Name("buildSettingsRequested")
 }

@@ -10,9 +10,14 @@ import SwiftUI
 struct WelcomeView: View {
     @State private var showOpen = false
     @State private var recentProjects: [URL] = []
+    @State private var automationStatus: String? = nil
     @Binding var showCreateProjectSheet: Bool
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) var dismissWindow
+
+    private var isUIAutomationLaunch: Bool {
+        ProcessInfo.processInfo.arguments.contains("--giskard-ui-automation")
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -45,10 +50,25 @@ struct WelcomeView: View {
                     .buttonStyle(.plain)
                 }
             }
+            if let automationStatus {
+                Divider()
+                Text(automationStatus)
+                    .font(.caption)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("automationStatusText")
+            }
         }
         .padding(40)
         .onAppear {
             recentProjects = Array(GiskardApp.recentProjectURLs().prefix(5))
+            if isUIAutomationLaunch {
+                openWindow(id: "editor")
+                dismissWindow(id: "welcome")
+                return
+            }
+            TestAutomationRunner.startIfNeeded { status in
+                automationStatus = status
+            }
         }
         .fileImporter(isPresented: $showOpen, allowedContentTypes: [.folder], allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first {
@@ -59,6 +79,15 @@ struct WelcomeView: View {
 
     private func openProject(at url: URL) {
         let resolvedURL = GiskardApp.resolveRecentProjectURL(url)
+        guard FileManager.default.fileExists(atPath: resolvedURL.path) else {
+            GiskardApp.removeRecentProject(url)
+            if resolvedURL.standardizedFileURL.path != url.standardizedFileURL.path {
+                GiskardApp.removeRecentProject(resolvedURL)
+            }
+            recentProjects = Array(GiskardApp.recentProjectURLs().prefix(5))
+            return
+        }
+
         let didStartAccessing = resolvedURL.startAccessingSecurityScopedResource()
         defer {
             if didStartAccessing {
@@ -67,7 +96,8 @@ struct WelcomeView: View {
         }
 
         FileSys.shared.SetRootURL(url: resolvedURL)
-        if GiskardApp.loadProjectFromDirectory(resolvedURL) {
+        let didLoad = GiskardApp.loadProjectFromDirectory(resolvedURL)
+        if didLoad {
                 openWindow(id: "editor")
                 recentProjects = Array(GiskardApp.recentProjectURLs().prefix(5))
                 withTransaction(\.dismissBehavior, .destructive) {
