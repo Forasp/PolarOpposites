@@ -8,12 +8,42 @@ import Foundation
 public struct SceneFile: Codable {
     public var sceneVersion: Int
     public var sceneName: String
+    public var scriptPaths: [String]
     public var entities: [SceneEntityNode]
 
-    public init(sceneVersion: Int = 1, sceneName: String, entities: [SceneEntityNode] = []) {
+    public init(
+        sceneVersion: Int = 1,
+        sceneName: String,
+        scriptPaths: [String] = [],
+        entities: [SceneEntityNode] = []
+    ) {
         self.sceneVersion = sceneVersion
         self.sceneName = sceneName
+        self.scriptPaths = scriptPaths
         self.entities = entities
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case sceneVersion
+        case sceneName
+        case scriptPaths
+        case entities
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sceneVersion = try container.decodeIfPresent(Int.self, forKey: .sceneVersion) ?? 1
+        sceneName = try container.decode(String.self, forKey: .sceneName)
+        scriptPaths = try container.decodeIfPresent([String].self, forKey: .scriptPaths) ?? []
+        entities = try container.decodeIfPresent([SceneEntityNode].self, forKey: .entities) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(sceneVersion, forKey: .sceneVersion)
+        try container.encode(sceneName, forKey: .sceneName)
+        try container.encode(scriptPaths, forKey: .scriptPaths)
+        try container.encode(entities, forKey: .entities)
     }
 
     public static func defaultScene(named name: String = "Main Scene") -> SceneFile {
@@ -31,6 +61,7 @@ public struct SceneEntityNode: Codable, Identifiable {
     public var isPhysical: Bool
     public var position: [Double]
     public var rotation: [Double]
+    public var scriptPaths: [String]
     public var capabilities: [String]
     public var children: [SceneEntityNode]
 
@@ -41,6 +72,7 @@ public struct SceneEntityNode: Codable, Identifiable {
         isPhysical: Bool = true,
         position: [Double] = [0, 0, 0],
         rotation: [Double] = [0, 0, 0, 1],
+        scriptPaths: [String] = [],
         capabilities: [String] = [],
         children: [SceneEntityNode] = []
     ) {
@@ -50,6 +82,7 @@ public struct SceneEntityNode: Codable, Identifiable {
         self.isPhysical = isPhysical
         self.position = position
         self.rotation = rotation
+        self.scriptPaths = scriptPaths
         self.capabilities = capabilities
         self.children = children
     }
@@ -61,6 +94,7 @@ public struct SceneEntityNode: Codable, Identifiable {
         case isPhysical
         case position
         case rotation
+        case scriptPaths
         case capabilities
         case children
     }
@@ -75,6 +109,7 @@ public struct SceneEntityNode: Codable, Identifiable {
         isPhysical = try container.decode(Bool.self, forKey: .isPhysical)
         position = try container.decode([Double].self, forKey: .position)
         rotation = try container.decode([Double].self, forKey: .rotation)
+        scriptPaths = try container.decodeIfPresent([String].self, forKey: .scriptPaths) ?? []
         capabilities = try container.decodeIfPresent([String].self, forKey: .capabilities) ?? []
         children = try container.decodeIfPresent([SceneEntityNode].self, forKey: .children) ?? []
     }
@@ -87,6 +122,7 @@ public struct SceneEntityNode: Codable, Identifiable {
         try container.encode(isPhysical, forKey: .isPhysical)
         try container.encode(position, forKey: .position)
         try container.encode(rotation, forKey: .rotation)
+        try container.encode(scriptPaths, forKey: .scriptPaths)
         try container.encode(capabilities, forKey: .capabilities)
         try container.encode(children, forKey: .children)
     }

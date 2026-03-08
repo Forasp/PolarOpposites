@@ -29,6 +29,7 @@ struct EntityEditorView: View {
     @State private var rotationYText: String = "0"
     @State private var rotationZText: String = "0"
     @State private var rotationWText: String = "0"
+    @State private var scriptPaths: [String] = []
 
     init() {
         if GiskardApp.selectedEntities.count > 0 {
@@ -61,6 +62,7 @@ struct EntityEditorView: View {
         self.rotationYText = formatNumericText(self.entity.rotation.vector.y)
         self.rotationZText = formatNumericText(self.entity.rotation.vector.z)
         self.rotationWText = formatNumericText(self.entity.rotation.vector.w)
+        self.scriptPaths = self.entity.scriptPaths
     }
 
     var body: some View {
@@ -159,6 +161,16 @@ struct EntityEditorView: View {
                                 isDirty = true
                             }
                     }
+
+                    ScriptAttachmentListView(
+                        title: "Scripts",
+                        emptyStateText: "Attach one or more .gs files to this entity.",
+                        scriptPaths: $scriptPaths,
+                        onChanged: {
+                        isDirty = true
+                        entity.scriptPaths = scriptPaths.filter { !$0.isEmpty }
+                        }
+                    )
                 }
 
             }
@@ -194,7 +206,11 @@ struct EntityEditorView: View {
     func updateEntity(_ entity: Entity) {
         self.entity = entity
         self.isDirty = false
-        GiskardApp.selectedEntityFileURL = GiskardApp.fileURL(for: entity.fileUUID)
+        if GiskardApp.selectedEntityContext == .file {
+            GiskardApp.selectedEntityFileURL = GiskardApp.fileURL(for: entity.fileUUID)
+        } else if GiskardApp.selectedEntityContext == .sceneNode {
+            GiskardApp.selectedEntityFileURL = nil
+        }
         self.pitch = self.entity.rotation.vector.x
         self.yaw = self.entity.rotation.vector.y
         self.roll = self.entity.rotation.vector.z
@@ -219,11 +235,17 @@ struct EntityEditorView: View {
         self.rotationYText = formatNumericText(self.entity.rotation.vector.y)
         self.rotationZText = formatNumericText(self.entity.rotation.vector.z)
         self.rotationWText = formatNumericText(self.entity.rotation.vector.w)
+        self.scriptPaths = self.entity.scriptPaths
         refreshChildDisplayValuesFromIDs()
     }
 
     func saveEntity() {
-        if saveSelectedSceneNode() {
+        entity.scriptPaths = scriptPaths.filter { !$0.isEmpty }
+        if GiskardApp.selectedEntityContext == .sceneNode {
+            if saveSelectedSceneNode() {
+                return
+            }
+            print("Failed to save selected scene node.")
             return
         }
 
@@ -251,8 +273,7 @@ struct EntityEditorView: View {
 
     private func saveSelectedSceneNode() -> Bool {
         guard let sceneURL = GiskardApp.selectedSceneFileURL,
-            let targetNodeID = GiskardApp.selectedSceneNodeID,
-            GiskardApp.selectedEntityFileURL == nil
+            GiskardApp.selectedEntityContext == .sceneNode
         else {
             return false
         }
@@ -263,7 +284,12 @@ struct EntityEditorView: View {
             return false
         }
 
-        guard updateSceneNode(in: &sceneFile.entities, targetNodeID: targetNodeID, from: entity)
+        guard Self.updateSceneNode(
+            in: &sceneFile.entities,
+            targetNodeID: GiskardApp.selectedSceneNodeID,
+            targetNodeIndexPath: GiskardApp.selectedSceneNodeIndexPath,
+            from: entity
+        )
         else {
             return false
         }
@@ -287,31 +313,86 @@ struct EntityEditorView: View {
         return false
     }
 
-    private func updateSceneNode(
+    static func updateSceneNode(
+        in nodes: inout [SceneEntityNode], targetNodeID: UUID, from entity: Entity
+    ) -> Bool {
+        updateSceneNode(
+            in: &nodes,
+            targetNodeID: Optional(targetNodeID),
+            targetNodeIndexPath: nil,
+            from: entity
+        )
+    }
+
+    static func updateSceneNode(
+        in nodes: inout [SceneEntityNode],
+        targetNodeID: UUID?,
+        targetNodeIndexPath: [Int]?,
+        from entity: Entity
+    ) -> Bool {
+        if let targetNodeID,
+           updateSceneNodeByID(in: &nodes, targetNodeID: targetNodeID, from: entity) {
+            return true
+        }
+
+        if let targetNodeIndexPath,
+           updateSceneNodeByIndexPath(in: &nodes, targetNodeIndexPath: targetNodeIndexPath, from: entity)
+        {
+            return true
+        }
+
+        return false
+    }
+
+    private static func updateSceneNodeByID(
         in nodes: inout [SceneEntityNode], targetNodeID: UUID, from entity: Entity
     ) -> Bool {
         for index in nodes.indices {
             if nodes[index].id == targetNodeID {
-                nodes[index].name = entity.name
-                nodes[index].isPhysical = entity.isPhysical
-                nodes[index].position = [entity.position.x, entity.position.y, entity.position.z]
-                nodes[index].rotation = [
-                    entity.rotation.vector.x,
-                    entity.rotation.vector.y,
-                    entity.rotation.vector.z,
-                    entity.rotation.vector.w,
-                ]
-                nodes[index].capabilities = entity.capabilities
-                // Keep nested scene children authoritative in scene mode.
+                applyEntity(entity, to: &nodes[index])
                 return true
             }
 
-            if updateSceneNode(in: &nodes[index].children, targetNodeID: targetNodeID, from: entity)
+            if updateSceneNodeByID(in: &nodes[index].children, targetNodeID: targetNodeID, from: entity)
             {
                 return true
             }
         }
         return false
+    }
+
+    private static func updateSceneNodeByIndexPath(
+        in nodes: inout [SceneEntityNode], targetNodeIndexPath: [Int], from entity: Entity
+    ) -> Bool {
+        guard let head = targetNodeIndexPath.first,
+              nodes.indices.contains(head) else {
+            return false
+        }
+
+        if targetNodeIndexPath.count == 1 {
+            applyEntity(entity, to: &nodes[head])
+            return true
+        }
+
+        return updateSceneNodeByIndexPath(
+            in: &nodes[head].children,
+            targetNodeIndexPath: Array(targetNodeIndexPath.dropFirst()),
+            from: entity
+        )
+    }
+
+    private static func applyEntity(_ entity: Entity, to node: inout SceneEntityNode) {
+        node.name = entity.name
+        node.isPhysical = entity.isPhysical
+        node.position = [entity.position.x, entity.position.y, entity.position.z]
+        node.rotation = [
+            entity.rotation.vector.x,
+            entity.rotation.vector.y,
+            entity.rotation.vector.z,
+            entity.rotation.vector.w,
+        ]
+        node.scriptPaths = entity.scriptPaths
+        node.capabilities = entity.capabilities
     }
 
     func update() async {

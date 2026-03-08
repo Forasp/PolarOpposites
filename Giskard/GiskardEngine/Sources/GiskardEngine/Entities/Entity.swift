@@ -22,9 +22,10 @@ public class Entity: Codable{
     public var rotation: Rotation3D
     public var children: [UUID]
     public var childEntityPaths: [String] = []
+    public var scriptPaths: [String] = []
     public var capabilities: [String] = []
     
-    public init(_ name: String, uuid: UUID = UUID(), fileUUID: UUID? = nil, physical: Bool = true, pos: Point3D = .zero, rot: Rotation3D = .identity, child:[UUID] = [], childPaths: [String] = [], caps: [String] = [])
+    public init(_ name: String, uuid: UUID = UUID(), fileUUID: UUID? = nil, physical: Bool = true, pos: Point3D = .zero, rot: Rotation3D = .identity, child:[UUID] = [], childPaths: [String] = [], scriptPaths: [String] = [], caps: [String] = [])
     {
         let resolvedFileUUID = fileUUID ?? UUID()
         self.fileUUID = resolvedFileUUID
@@ -35,6 +36,7 @@ public class Entity: Codable{
         rotation = rot
         children = child
         childEntityPaths = childPaths
+        self.scriptPaths = scriptPaths
         capabilities = caps
         capabilitiesInternal = []
         for cap in caps {
@@ -89,6 +91,7 @@ public class Entity: Codable{
         case rotation
         case children
         case childEntityPaths
+        case scriptPaths
         case capabilities
     }
 
@@ -104,6 +107,7 @@ public class Entity: Codable{
         rotation = try container.decode(Rotation3D.self, forKey: .rotation)
         children = try container.decodeIfPresent([UUID].self, forKey: .children) ?? []
         childEntityPaths = try container.decodeIfPresent([String].self, forKey: .childEntityPaths) ?? []
+        scriptPaths = try container.decodeIfPresent([String].self, forKey: .scriptPaths) ?? []
         capabilities = try container.decodeIfPresent([String].self, forKey: .capabilities) ?? []
 
         capabilitiesInternal = []
@@ -126,6 +130,7 @@ public class Entity: Codable{
         try container.encode(rotation, forKey: .rotation)
         try container.encode(children, forKey: .children)
         try container.encode(childEntityPaths, forKey: .childEntityPaths)
+        try container.encode(scriptPaths, forKey: .scriptPaths)
         try container.encode(capabilities, forKey: .capabilities)
     }
 

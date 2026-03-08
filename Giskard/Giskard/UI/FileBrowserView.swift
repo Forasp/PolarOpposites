@@ -15,6 +15,7 @@ struct FileBrowserView: View {
     private enum NamePromptAction {
         case entity
         case scene
+        case script
         case folder
         case rename
     }
@@ -129,6 +130,9 @@ struct FileBrowserView: View {
                             Button("Entity") {
                                 beginCreatingEntity()
                             }
+                            Button("Script") {
+                                beginCreatingScript()
+                            }
                         } label: {
                             Image(systemName: "plus")
                                 .imageScale(.small)
@@ -207,6 +211,23 @@ struct FileBrowserView: View {
         }
     }
 
+    public func createNewScriptFile() {
+        guard let baseURL = selectedFolder?.url else { return }
+        let sanitizedScriptName = sanitizedName(newFileName) + ".gs"
+        guard sanitizedScriptName != ".gs" else { return }
+
+        let fileURL = baseURL.appendingPathComponent(sanitizedScriptName)
+        guard let data = EditorProjectSupport.defaultScriptTemplate.data(using: .utf8) else {
+            return
+        }
+
+        if FileSys.shared.CreateFile(fileURL.absoluteString, data: data) {
+            refreshTreePreservingSelection()
+        } else {
+            print("Error writing script file: \(fileURL.absoluteString)")
+        }
+    }
+
     public func setSelectedFolder(_ node: FileNode) {
         selectedFolder = node
     }
@@ -229,6 +250,9 @@ struct FileBrowserView: View {
             Button("New Entity") {
                 beginCreatingEntity()
             }
+            Button("New Script") {
+                beginCreatingScript()
+            }
         }
     }
 
@@ -238,6 +262,8 @@ struct FileBrowserView: View {
             return "New Entity Name"
         case .scene:
             return "New Scene Name"
+        case .script:
+            return "New Script Name"
         case .folder:
             return "New Folder Name"
         case .rename:
@@ -251,6 +277,8 @@ struct FileBrowserView: View {
             return "Entity Name"
         case .scene:
             return "Scene Name"
+        case .script:
+            return "Script Name"
         case .folder:
             return "Folder Name"
         case .rename:
@@ -288,6 +316,13 @@ struct FileBrowserView: View {
         showingNamePrompt = true
     }
 
+    private func beginCreatingScript() {
+        namePromptAction = .script
+        renameTarget = nil
+        newFileName = ""
+        showingNamePrompt = true
+    }
+
     private func beginRenaming(_ node: FileNode) {
         namePromptAction = .rename
         renameTarget = node
@@ -304,6 +339,8 @@ struct FileBrowserView: View {
             createNewEntityFile()
         case .scene:
             createNewSceneFile()
+        case .script:
+            createNewScriptFile()
         case .folder:
             createNewFolder()
         case .rename:
@@ -497,6 +534,16 @@ struct FileBrowserView: View {
 
         if item.url.pathExtension.lowercased() == "scene" {
             GiskardApp.selectScene(item.url)
+            return
+        }
+
+        if item.url.lastPathComponent == BuildConfiguration.fileName {
+            NotificationCenter.default.post(name: .buildSettingsRequested, object: nil)
+            return
+        }
+
+        if item.url.pathExtension.lowercased() == "gs" {
+            GiskardApp.selectScript(item.url)
             return
         }
 

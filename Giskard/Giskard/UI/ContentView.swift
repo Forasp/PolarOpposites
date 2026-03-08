@@ -13,6 +13,7 @@ enum InspectorTypes {
     case EntityInspector
     case ImageInspector
     case SceneInspector
+    case ScriptInspector
 
     init?(notificationValue: String) {
         switch notificationValue {
@@ -22,6 +23,8 @@ enum InspectorTypes {
             self = .ImageInspector
         case "scene":
             self = .SceneInspector
+        case "script":
+            self = .ScriptInspector
         default:
             return nil
         }
@@ -35,6 +38,8 @@ enum InspectorTypes {
             return "image"
         case .SceneInspector:
             return "scene"
+        case .ScriptInspector:
+            return "script"
         }
     }
 }
@@ -54,6 +59,9 @@ struct ContentView: View {
     @State private var activeInspectorType: InspectorTypes = .EntityInspector
     @State private var sceneExplorerHeight: CGFloat = 220
     @State private var automationStatus: String? = nil
+    @State private var buildStatus: String? = nil
+    @State private var showBuildSettingsSheet = false
+    @State private var buildSettingsRequestedObserver: NSObjectProtocol?
     
     func onProjectLoaded() {
         fileRoot = nil;
@@ -81,6 +89,11 @@ struct ContentView: View {
             .sheet(isPresented: $showCreateProjectSheet) {
                 CreateProjectView()
             }
+            .sheet(isPresented: $showBuildSettingsSheet) {
+                BuildSettingsView { status in
+                    buildStatus = status
+                }
+            }
             .onAppear {
                 onProjectLoaded()
                 activeInspectorType = GiskardApp.mainInspectorType
@@ -99,6 +112,9 @@ struct ContentView: View {
                     }
                     self.showInspector = true
                 }
+                buildSettingsRequestedObserver = NotificationCenter.default.addObserver(forName: .buildSettingsRequested, object: nil, queue: .main) { _ in
+                    self.showBuildSettingsSheet = true
+                }
             }
             .onDisappear {
                 if let observer = projectLoadedObserver {
@@ -108,6 +124,10 @@ struct ContentView: View {
                 if let observer = inspectorSelectionObserver {
                     NotificationCenter.default.removeObserver(observer)
                     inspectorSelectionObserver = nil
+                }
+                if let observer = buildSettingsRequestedObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    buildSettingsRequestedObserver = nil
                 }
             }
             .fileImporter(
@@ -137,18 +157,20 @@ struct ContentView: View {
                         ImageInspectorView()
                     case InspectorTypes.SceneInspector:
                         SceneInspectorView()
+                    case InspectorTypes.ScriptInspector:
+                        ScriptEditorView()
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .overlay(alignment: .bottomLeading) {
-                if let automationStatus {
-                    Text(automationStatus)
+                if let status = buildStatus ?? automationStatus {
+                    Text(status)
                         .font(.caption)
                         .padding(8)
                         .background(Color.black.opacity(0.2))
                         .accessibilityElement(children: .ignore)
-                        .accessibilityIdentifier("automationStatusText")
+                        .accessibilityIdentifier(buildStatus == nil ? "automationStatusText" : "buildStatusText")
                 }
             }
         }
@@ -156,6 +178,41 @@ struct ContentView: View {
             Button(action: { showInspector.toggle() }) {
                 Label("Toggle Inspector", systemImage: "sidebar.right")
             }
+            Button(action: { showBuildSettingsSheet = true }) {
+                Label("Build Settings", systemImage: "gearshape.2")
+            }
+            Button(action: launchDebugRun) {
+                Label("Debug Run", systemImage: "play.circle")
+            }
+        }
+    }
+
+    private func launchDebugRun() {
+        guard let projectRoot = GiskardApp.getProject().projectPath else {
+            buildStatus = "Load a project before running a debug build."
+            return
+        }
+
+        let project = GiskardApp.getProject()
+
+        do {
+            let plan = try EditorProjectSupport.makeDebugRunLaunchPlan(
+                project: project,
+                bundleURL: Bundle.main.bundleURL
+            )
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = ["-n", Bundle.main.bundleURL.path, "--args"] + plan.arguments
+            try process.run()
+
+            let relativeManifestPath = EditorProjectSupport.relativeProjectPath(
+                for: plan.manifestURL,
+                projectRoot: projectRoot
+            ) ?? plan.manifestURL.lastPathComponent
+            buildStatus = "Debug run launched using \(relativeManifestPath)."
+        } catch {
+            buildStatus = error.localizedDescription
         }
     }
 
@@ -252,4 +309,5 @@ extension Notification.Name {
     static let projectLoaded = Notification.Name("projectLoaded")
     static let inspectorSelectionChanged = Notification.Name("inspectorSelectionChanged")
     static let sceneFileUpdated = Notification.Name("sceneFileUpdated")
+    static let buildSettingsRequested = Notification.Name("buildSettingsRequested")
 }

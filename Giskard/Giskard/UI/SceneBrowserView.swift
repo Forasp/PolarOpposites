@@ -183,7 +183,11 @@ struct SceneBrowserView: View {
             selectedPath.append(node.id)
         }
         if let sceneURL {
-            GiskardApp.selectSceneNode(node, sceneURL: sceneURL)
+            GiskardApp.selectSceneNode(
+                node,
+                sceneURL: sceneURL,
+                indexPath: indexPathToNode(id: node.id, in: scene?.entities ?? [])
+            )
         }
     }
 
@@ -373,7 +377,11 @@ struct SceneBrowserView: View {
         scene = currentScene
         selectedPath = pathToNode(id: duplicate.id, in: currentScene.entities) ?? selectedPath
         if let sceneURL {
-            GiskardApp.selectSceneNode(duplicate, sceneURL: sceneURL)
+            GiskardApp.selectSceneNode(
+                duplicate,
+                sceneURL: sceneURL,
+                indexPath: indexPathToNode(id: duplicate.id, in: currentScene.entities)
+            )
         }
         persistSceneChanges()
     }
@@ -441,7 +449,11 @@ struct SceneBrowserView: View {
         scene = currentScene
         selectedPath = pathToNode(id: pastedNode.id, in: currentScene.entities) ?? selectedPath
         if let sceneURL {
-            GiskardApp.selectSceneNode(pastedNode, sceneURL: sceneURL)
+            GiskardApp.selectSceneNode(
+                pastedNode,
+                sceneURL: sceneURL,
+                indexPath: indexPathToNode(id: pastedNode.id, in: currentScene.entities)
+            )
         }
         persistSceneChanges()
     }
@@ -474,7 +486,11 @@ struct SceneBrowserView: View {
         scene = currentScene
         selectedPath = pathToNode(id: newNode.id, in: currentScene.entities) ?? selectedPath
         if let sceneURL {
-            GiskardApp.selectSceneNode(newNode, sceneURL: sceneURL)
+            GiskardApp.selectSceneNode(
+                newNode,
+                sceneURL: sceneURL,
+                indexPath: indexPathToNode(id: newNode.id, in: currentScene.entities)
+            )
         }
         persistSceneChanges()
     }
@@ -534,6 +550,18 @@ struct SceneBrowserView: View {
             }
             if let childPath = pathToNode(id: id, in: node.children) {
                 return [node.id] + childPath
+            }
+        }
+        return nil
+    }
+
+    private func indexPathToNode(id: UUID, in nodes: [SceneEntityNode]) -> [Int]? {
+        for (index, node) in nodes.enumerated() {
+            if node.id == id {
+                return [index]
+            }
+            if let childPath = indexPathToNode(id: id, in: node.children) {
+                return [index] + childPath
             }
         }
         return nil

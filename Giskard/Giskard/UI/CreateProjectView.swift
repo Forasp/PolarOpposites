@@ -81,7 +81,8 @@ struct CreateProjectView: View {
                                 projectAuthor: projectAuthor,
                                 projectPath: folderURL,
                                 description: description,
-                                creationDate: ISO8601DateFormatter().string(from: Date())
+                                creationDate: ISO8601DateFormatter().string(from: Date()),
+                                mainScenePath: "Main.scene"
                             )
                             
                             // Encode to JSON
@@ -102,6 +103,14 @@ struct CreateProjectView: View {
                                     print("Failed to create default .scene file")
                                     return
                                 }
+                                let buildConfiguration = EditorProjectSupport.defaultBuildConfiguration(
+                                    project: projectInfo,
+                                    scenePaths: ["Main.scene"]
+                                )
+                                _ = EditorProjectSupport.saveBuildConfiguration(
+                                    buildConfiguration,
+                                    for: projectInfo
+                                )
                                 // Ensure the freshly-created project can be reopened via Recent Projects immediately.
                                 GiskardApp.recordRecentProject(folderURL)
                                 GiskardApp.loadProject(projectInfo);
