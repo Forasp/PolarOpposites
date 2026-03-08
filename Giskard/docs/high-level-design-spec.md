@@ -357,6 +357,12 @@ High-level asset/data expectations:
 - entities define reusable object data and capability composition
 - asset references should be stable and portable within a project
 
+Capability model direction:
+
+- capabilities should remain string-addressed long term
+- string-addressed capabilities improve accessibility for designers, tooling authors, and mod creators
+- the system should allow capabilities to be referenced by string name even when they are introduced outside the core engine through mods or external packages
+
 The current split between `.scene` and `.entity` files should be treated as the initial authoring format unless future requirements justify a different asset pipeline.
 
 Scene composition direction:
@@ -365,8 +371,16 @@ Scene composition direction:
 - scenes may also reference reusable standalone `.entity` assets
 - the asset model should support both approaches from the start
 - referenced `.entity` instances should store both source path and source UUID
-- referenced `.entity` instances should store scene-local divergences from the source asset
+- referenced `.entity` instances should store scene-local divergences from the source asset as patch/delta data containing only changed fields
 - scene instances may override any field from the referenced `.entity` asset
+- if a referenced `.entity` asset changes later, scene instances should inherit source changes except where the scene has explicitly overridden fields
+- inline scene entities and referenced `.entity` assets should resolve into the same runtime `Entity` type after load
+
+Entity structure direction:
+
+- entity transform data is conceptually optional
+- however, transform data may still exist on the base entity object for practicality even when unused
+- transform fields should always be serialized even when unused
 
 ## 8. Editor Feature Scope
 
@@ -395,6 +409,12 @@ Preview mode direction:
 - the default editor preview mode is visual preview only
 - full runtime simulation may be added later as a separate mode rather than being assumed by default
 
+Near-term workflow priorities:
+
+- Lua-based scripting support
+- build configuration authoring
+- debug-run workflow for launching a playable build from selected project scenes
+
 ## 9. Platform Expectations
 
 All packages should:
@@ -408,6 +428,12 @@ Additional package-specific expectations:
 - `Giskard Vision` uses Metal
 - `Giskard Editor` uses Swift and Metal-backed rendering
 - `Giskard Brain` may optionally use Metal compute
+
+Naming direction:
+
+- public package and product naming should be consistent across the project
+- the intended names are `GiskardEditor`, `GiskardEngine`, `GiskardVision`, `GiskardHearing`, `GiskardBrain`, and `GiskardTouch`, or equivalent consistently spaced public branding such as "Giskard Vision"
+- mismatched internal/product naming such as exposing `Renderer` instead of `GiskardVision` should be avoided long term
 
 Platform compatibility should be enforced through API choices and separation of platform-specific code paths, not by weakening the macOS-first editor experience.
 
@@ -424,6 +450,8 @@ Requirements:
 - entity inspection and editing
 - project asset browser
 - editor-only UI state and workflow logic
+- scripting workflows for standalone `.gs` files attached to scenes and entities
+- build workflows for selecting included scenes, choosing the entry scene, and running debug builds
 
 Non-responsibilities:
 
@@ -449,6 +477,9 @@ Code ownership rules:
 - game-specific runtime code should always live in separate packages
 - `GiskardEngine` should remain a reusable framework package rather than a home for game-specific behavior
 - each engine or world instance should own its own event system rather than relying on a single global process-wide event bus
+- one gameplay package per game project is the intended design, but the architecture should remain flexible enough to support multiple gameplay modules if that can be achieved cleanly
+- the default gameplay-package layout should be one external gameplay package referenced by path from the project rather than embedded inside the project itself
+- the gameplay-package reference path should be relative to the project
 
 Initial simulation scope:
 
@@ -457,6 +488,7 @@ Initial simulation scope:
 - collisions
 - triggers
 - both 2D and 3D support from the start
+- tag-based collision filtering
 
 Non-responsibilities:
 
@@ -476,6 +508,18 @@ Requirements:
 - internalized resource loading and render complexity
 - ownership of asset loading for renderer-managed assets
 - engine-to-renderer asset references should initially be communicated as file paths
+- the engine-facing API should remain intentionally simple and resemble the accessibility of libraries such as SFML rather than exposing low-level renderer internals
+- common operations should be expressed as straightforward commands such as updating object position, asset, scale, orientation, and related render state
+
+Renderer interaction model direction:
+
+- the engine should submit simple per-frame draw/update commands rather than manage low-level graphics resources directly
+- commands should describe the current object state for that frame, such as asset path, transform, scale, camera state, light state, post-process controls, and other visibility-relevant state
+- this should loosely resemble SFML's approachable render-target model, where the caller clears a frame, submits drawables or draw commands with their current state, and presents the frame
+- the intent is ease of use, not a literal SFML API clone
+- the engine's responsibility is to report object state to `GiskardVision`
+- the engine may communicate full scene render state, but this should still happen through a stream of simple individual commands rather than one monolithic scene blob
+- `GiskardVision` is responsible for render-side decisions such as culling objects that are too far away, outside the camera view, occluded, or otherwise not worth drawing
 
 ### 10.4 Giskard Hearing
 
@@ -509,6 +553,42 @@ Requirements:
 - support for both raw device events and higher-level action mappings
 - action mappings should live in gameplay code or gameplay-owned data assets rather than core project or scene settings
 
+### 10.7 Scripting
+
+Requirements:
+
+- scripting support should target Lua initially
+- scripts may be attached to both scenes and entities
+- scripts should be stored as standalone `.gs` project files
+- scripts should be able to read and modify entity fields
+- scripts should be able to subscribe to, inspect, and emit engine events
+
+Initial scripting expectations:
+
+- scripting access should begin with entity field access and event interaction rather than full unrestricted engine internals
+- script-driven actions may include requests such as loading a texture or changing the active scene through the event system
+- both scene scripts and entity scripts should expose baseline lifecycle functions named `Begin`, `End`, and `Tick`
+- scene scripts and entity scripts should expose the same functional API surface
+- `Begin` should run when the associated scene or entity becomes enabled
+- `End` should run when the associated scene or entity becomes disabled
+- `Tick` should run once per engine tick while the associated scene or entity remains enabled
+- scripts should receive events by polling or reading them during `Tick` rather than through dedicated event callback functions
+- entities should support multiple attached scripts in an ordered list
+- scripts should not execute during visual editor preview
+
+### 10.8 Build and Run
+
+Requirements:
+
+- build configuration should live in a dedicated build configuration file
+- the build configuration file format should be JSON
+- included scenes should be defined through an explicit include list
+- the game should declare a single entry scene
+- the first supported build output should prioritize a debug-run target
+- packaged application output may be added after the debug-run pipeline is stable
+- the debug-run target should launch the built game as a separate process
+- build configuration should include application name, bundle identifier, version, and icon or related application assets
+
 ## 11. Current Gaps Between Existing Code and Target Direction
 
 Based on the current repository, the following gaps are visible:
@@ -540,17 +620,14 @@ The next documents that should be written after this one are:
 - event/message system spec
 - rendering API contract for engine-to-vision communication
 - package dependency and ownership spec
+- Lua scripting integration spec
+- build and packaging spec
 
 ## 14. Open Questions
 
 The following product decisions still need explicit specification:
 
 - what the stable public API boundary between `Giskard Engine` and `Giskard Vision` should be
-- whether package names are final for public distribution and long-term source layout
-- whether the long-term capability model should stay string-based or evolve into a registration system with stable IDs
-- how inline scene entities and referenced `.entity` assets should resolve into runtime instances
-- how scene-local divergences from referenced `.entity` assets should be represented and merged
-- what the stable project/package layout should be for game-specific packages that depend on `GiskardEngine`
 
 ## 15. Summary
 

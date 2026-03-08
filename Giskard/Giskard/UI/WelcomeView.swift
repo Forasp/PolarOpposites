@@ -15,6 +15,10 @@ struct WelcomeView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) var dismissWindow
 
+    private var isUIAutomationLaunch: Bool {
+        ProcessInfo.processInfo.arguments.contains("--giskard-ui-automation")
+    }
+
     var body: some View {
         VStack(spacing: 16) {
             Text("Giskard").font(.largeTitle).bold()
@@ -50,12 +54,18 @@ struct WelcomeView: View {
                 Divider()
                 Text(automationStatus)
                     .font(.caption)
+                    .accessibilityElement(children: .ignore)
                     .accessibilityIdentifier("automationStatusText")
             }
         }
         .padding(40)
         .onAppear {
             recentProjects = Array(GiskardApp.recentProjectURLs().prefix(5))
+            if isUIAutomationLaunch {
+                openWindow(id: "editor")
+                dismissWindow(id: "welcome")
+                return
+            }
             TestAutomationRunner.startIfNeeded { status in
                 automationStatus = status
             }

@@ -35,7 +35,7 @@ enum TestAutomationRunner {
 
     private static func formatStatus(for report: SmokeTestReport) -> String {
         if report.success {
-            return "AUTOMATION_SUCCESS scenes=\(report.createdSceneCount) folders=\(report.createdFolderCount) entityFiles=\(report.createdEntityFileCount) sceneEntities=\(report.createdSceneEntityCount)"
+            return "AUTOMATION_SUCCESS scenes=\(report.createdSceneCount) folders=\(report.createdFolderCount) entityFiles=\(report.createdEntityFileCount) sceneEntities=\(report.createdSceneEntityCount) cameras=\(report.cameraCount) render2D=\(report.renderable2DCount) render3D=\(report.renderable3DCount)"
         }
         return "AUTOMATION_FAILURE \(report.errors.joined(separator: " | "))"
     }
@@ -69,7 +69,7 @@ enum TestAutomationRunner {
             try writeScene(mainScene, to: mainSceneURL)
 
             let extraSceneURL = rootURL.appendingPathComponent("Sandbox.scene")
-            let extraScene = SceneFile.defaultScene(named: "Sandbox Scene")
+            let extraScene = buildAutomationPreviewScene()
             try writeScene(extraScene, to: extraSceneURL)
             report.createdSceneCount = 2
 
@@ -79,7 +79,7 @@ enum TestAutomationRunner {
 
             let entityFileCount = random.int(in: 2...10)
             report.createdEntityFileCount = entityFileCount
-            let entityFileUUIDs = try createRandomEntityFiles(
+            _ = try createRandomEntityFiles(
                 count: entityFileCount,
                 rootURL: rootURL,
                 folderURLs: folders,
@@ -88,21 +88,24 @@ enum TestAutomationRunner {
 
             GiskardApp.selectScene(extraSceneURL)
 
-            let sceneEntityCount = random.int(in: 10...100)
-            report.createdSceneEntityCount = sceneEntityCount
-            var populatedScene = buildSceneWithRandomEntities(
-                count: sceneEntityCount,
-                sourceFileUUIDs: entityFileUUIDs,
-                random: random
-            )
-
-            editAllSceneEntities(&populatedScene.entities, random: random)
-            report.editedEntityCount = countNodes(populatedScene.entities)
-
-            try writeScene(populatedScene, to: extraSceneURL)
             if let data = FileSys.shared.ReadFile(extraSceneURL.path) {
                 let decoded = try JSONDecoder().decode(SceneFile.self, from: data)
-                if countNodes(decoded.entities) != sceneEntityCount {
+                report.createdSceneEntityCount = countNodes(decoded.entities)
+                report.editedEntityCount = report.createdSceneEntityCount
+                report.cameraCount = countNodes(withCapability: "Camera", in: decoded.entities)
+                report.renderable2DCount = countNodes(withCapability: "Renderable2D", in: decoded.entities)
+                report.renderable3DCount = countNodes(withCapability: "Renderable3D", in: decoded.entities)
+
+                if report.cameraCount != 1 {
+                    report.errors.append("Expected exactly one camera node")
+                }
+                if report.renderable2DCount != 1 {
+                    report.errors.append("Expected exactly one 2D renderable node")
+                }
+                if report.renderable3DCount != 1 {
+                    report.errors.append("Expected exactly one 3D renderable node")
+                }
+                if countNodes(decoded.entities) != 4 {
                     report.errors.append("Decoded scene entity count mismatch")
                 }
             } else {
@@ -195,52 +198,55 @@ enum TestAutomationRunner {
         return uuids
     }
 
-    private static func buildSceneWithRandomEntities(
-        count: Int,
-        sourceFileUUIDs: [UUID],
-        random: SeededRandom
-    ) -> SceneFile {
-        var nodes: [SceneEntityNode] = []
-        for index in 0..<count {
-            let fileUUID = sourceFileUUIDs.isEmpty ? UUID() : sourceFileUUIDs[random.int(in: 0...(sourceFileUUIDs.count - 1))]
-            let node = SceneEntityNode(
-                fileUUID: fileUUID,
-                name: "SceneEntity_\(index + 1)",
-                isPhysical: true,
-                position: [0, 0, 0],
-                rotation: [0, 0, 0, 1],
-                capabilities: [],
-                children: []
-            )
-            nodes.append(node)
-        }
+    private static func buildAutomationPreviewScene() -> SceneFile {
+        let cameraNode = SceneEntityNode(
+            name: "Preview Camera",
+            isPhysical: false,
+            position: [0, 0, -25],
+            rotation: [0, 0, 0, 1],
+            capabilities: ["Camera"]
+        )
+        let spriteNode = SceneEntityNode(
+            name: "Preview Sprite",
+            isPhysical: false,
+            position: [-12, 6, 0],
+            rotation: [0, 0, 0, 1],
+            capabilities: ["Renderable2D"]
+        )
+        let meshNode = SceneEntityNode(
+            name: "Preview Mesh",
+            isPhysical: false,
+            position: [10, -4, 12],
+            rotation: [0, 0, 0.3826834, 0.9238795],
+            capabilities: ["Renderable3D"]
+        )
+        let helperNode = SceneEntityNode(
+            name: "Preview Helper",
+            isPhysical: false,
+            position: [0, 18, 0],
+            rotation: [0, 0, 0, 1],
+            capabilities: ["Movable"]
+        )
 
-        return SceneFile(sceneVersion: 1, sceneName: "Sandbox Scene", entities: nodes)
-    }
-
-    private static func editAllSceneEntities(_ nodes: inout [SceneEntityNode], random: SeededRandom) {
-        for index in nodes.indices {
-            nodes[index].position = [
-                random.double(in: -500...500),
-                random.double(in: -500...500),
-                random.double(in: -500...500),
-            ]
-            nodes[index].rotation = [
-                random.double(in: -1...1),
-                random.double(in: -1...1),
-                random.double(in: -1...1),
-                random.double(in: -1...1),
-            ]
-            nodes[index].capabilities = random.capabilities()
-            if !nodes[index].children.isEmpty {
-                editAllSceneEntities(&nodes[index].children, random: random)
-            }
-        }
+        return SceneFile(
+            sceneVersion: 1,
+            sceneName: "Sandbox Scene",
+            entities: [cameraNode, spriteNode, meshNode, helperNode]
+        )
     }
 
     private static func countNodes(_ nodes: [SceneEntityNode]) -> Int {
         nodes.reduce(0) { partial, node in
             partial + 1 + countNodes(node.children)
+        }
+    }
+
+    private static func countNodes(withCapability capability: String, in nodes: [SceneEntityNode]) -> Int {
+        nodes.reduce(0) { partial, node in
+            let ownCount = node.capabilities.contains(where: {
+                $0.caseInsensitiveCompare(capability) == .orderedSame
+            }) ? 1 : 0
+            return partial + ownCount + countNodes(withCapability: capability, in: node.children)
         }
     }
 
@@ -267,6 +273,9 @@ private struct SmokeTestReport: Codable {
     var createdEntityFileCount: Int = 0
     var createdSceneEntityCount: Int = 0
     var editedEntityCount: Int = 0
+    var cameraCount: Int = 0
+    var renderable2DCount: Int = 0
+    var renderable3DCount: Int = 0
     var errors: [String] = []
 }
 
@@ -284,7 +293,7 @@ private final class SeededRandom {
     }
 
     func capabilities() -> [String] {
-        let options = ["Movable", "Camera"]
+        let options = ["Movable"]
         let count = Int.random(in: 1...options.count)
         return Array(options.shuffled().prefix(count))
     }

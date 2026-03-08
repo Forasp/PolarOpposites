@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import Renderer
 
 enum InspectorTypes {
     case EntityInspector
@@ -146,6 +147,7 @@ struct ContentView: View {
                         .font(.caption)
                         .padding(8)
                         .background(Color.black.opacity(0.2))
+                        .accessibilityElement(children: .ignore)
                         .accessibilityIdentifier("automationStatusText")
                 }
             }
@@ -180,6 +182,13 @@ private struct SceneWorkspaceView: View {
     private let minRendererHeight: CGFloat = 180
     private let minExplorerHeight: CGFloat = 120
     @State private var dragStartHeight: CGFloat?
+    @State private var renderDiagnostics = RendererFrameSnapshot()
+
+    private var renderDiagnosticsText: String {
+        let cameraValue = renderDiagnostics.hasCameraCommand ? "yes" : "no"
+        let issueCount = renderDiagnostics.issues.count
+        return "Render 2D=\(renderDiagnostics.renderable2DCount) 3D=\(renderDiagnostics.renderable3DCount) camera=\(cameraValue) issues=\(issueCount)"
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -189,9 +198,21 @@ private struct SceneWorkspaceView: View {
             let rendererHeight = max(minRendererHeight, totalHeight - dividerHeight - clampedExplorerHeight)
 
             VStack(spacing: 0) {
-                SceneRenderView()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: rendererHeight)
+                SceneRenderView { snapshot in
+                    renderDiagnostics = snapshot
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: rendererHeight)
+                .overlay(alignment: .topLeading) {
+                    Text(renderDiagnosticsText)
+                        .font(.caption.monospaced())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.28))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityIdentifier("renderDiagnosticsText")
+                        .padding(8)
+                }
 
                 Rectangle()
                     .fill(Color.white.opacity(0.16))

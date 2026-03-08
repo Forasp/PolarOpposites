@@ -26,17 +26,11 @@ public final class SceneRenderTickSystem {
         ensureFallbackResources(in: renderer)
 
         renderer.beginReceivingCommands()
-
-        guard let rootNode = scene.entities.first else {
-            renderer.endReceivingCommandsAndRenderFrame()
-            return
-        }
-
-        let cameraNode = findFirstCameraNode(in: [rootNode])
         let targetTexture = fallbackTextureHandle ?? uploadFallbackTexture(in: renderer)
+        let cameraNode = findFirstCameraNode(in: scene.entities)
 
-        if let cameraNode, let targetTexture {
-            let descriptor = cameraDescriptor(from: cameraNode)
+        if let targetTexture {
+            let descriptor = cameraNode.map(cameraDescriptor(from:)) ?? defaultCameraDescriptor()
             if let existing = cameraHandle {
                 renderer.updateCamera(existing, descriptor: descriptor)
             } else {
@@ -49,8 +43,9 @@ public final class SceneRenderTickSystem {
             }
         }
 
-        // Traverse scene graph starting from the root entity node.
-        traverseAndEnqueue(rootNode, renderer: renderer)
+        for node in scene.entities {
+            traverseAndEnqueue(node, renderer: renderer)
+        }
 
         if let targetTexture {
             renderer.enqueuePresentTexture(
@@ -174,6 +169,16 @@ public final class SceneRenderTickSystem {
                 z: Float(node.rotation[safe: 2] ?? 0),
                 w: Float(node.rotation[safe: 3] ?? 1)
             )
+        )
+    }
+
+    private func defaultCameraDescriptor() -> CameraDescriptor {
+        CameraDescriptor(
+            position: RendererVector3(x: 0, y: 0, z: -25),
+            rotation: .identity,
+            verticalFOVDegrees: 60,
+            nearPlane: 0.1,
+            farPlane: 10_000
         )
     }
 

@@ -43,6 +43,24 @@ final class GiskardUITests: XCTestCase {
             statusLabel.label.hasPrefix("AUTOMATION_SUCCESS"),
             "Smoke scenario failed: \(statusLabel.label)"
         )
+
+        let renderDiagnosticsLabel = app.staticTexts["renderDiagnosticsText"]
+        XCTAssertTrue(
+            renderDiagnosticsLabel.waitForExistence(timeout: 30),
+            "Render diagnostics were never shown."
+        )
+
+        let renderExpectation = expectation(
+            for: NSPredicate(
+                format: "label CONTAINS '2D=1' AND label CONTAINS '3D=1' AND label CONTAINS 'camera=yes' AND label CONTAINS 'issues=0'"
+            ),
+            evaluatedWith: renderDiagnosticsLabel
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [renderExpectation], timeout: 30),
+            .completed,
+            "Render diagnostics did not confirm the expected preview frame: \(renderDiagnosticsLabel.label)"
+        )
     }
 
     @MainActor

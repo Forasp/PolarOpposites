@@ -256,6 +256,28 @@ public struct PresentTextureCommand: Sendable, Equatable {
     }
 }
 
+public struct RendererFrameSnapshot: Sendable, Equatable {
+    public var renderable2DCount: Int
+    public var renderable3DCount: Int
+    public var hasCameraCommand: Bool
+    public var hasPresentCommand: Bool
+    public var issues: [String]
+
+    public init(
+        renderable2DCount: Int = 0,
+        renderable3DCount: Int = 0,
+        hasCameraCommand: Bool = false,
+        hasPresentCommand: Bool = false,
+        issues: [String] = []
+    ) {
+        self.renderable2DCount = renderable2DCount
+        self.renderable3DCount = renderable3DCount
+        self.hasCameraCommand = hasCameraCommand
+        self.hasPresentCommand = hasPresentCommand
+        self.issues = issues
+    }
+}
+
 private struct MeshGPUResource {
     var vertexBuffer: MTLBuffer
     var indexBuffer: MTLBuffer?
@@ -273,12 +295,21 @@ private struct FrameCommandPackage {
 private struct FallbackVertex {
     var x: Float
     var y: Float
+    var red: Float
+    var green: Float
+    var blue: Float
+    var alpha: Float
 }
 
 public final class Renderer: NSObject, MTKViewDelegate {
     public let device: MTLDevice
     public private(set) var configuration: RendererConfiguration
     public private(set) var lastSubmissionIssues: [String] = []
+    public var lastFrameSnapshot: RendererFrameSnapshot {
+        lock.lock()
+        defer { lock.unlock() }
+        return frameSnapshot
+    }
 
     private let commandQueue: MTLCommandQueue
     private let fallbackPipelineState: MTLRenderPipelineState?
@@ -298,6 +329,7 @@ public final class Renderer: NSObject, MTKViewDelegate {
     private var pendingCommands = FrameCommandPackage()
     private var submittedCommands: FrameCommandPackage? = nil
     private var hasFrameToRender = false
+    private var frameSnapshot = RendererFrameSnapshot()
 
     public init?(
         device: MTLDevice? = MTLCreateSystemDefaultDevice(),
@@ -341,6 +373,13 @@ public final class Renderer: NSObject, MTKViewDelegate {
         submittedCommands = pendingCommands
         hasFrameToRender = true
         lastSubmissionIssues = validate(commandPackage: pendingCommands)
+        frameSnapshot = RendererFrameSnapshot(
+            renderable2DCount: pendingCommands.renderable2D.count,
+            renderable3DCount: pendingCommands.renderable3D.count,
+            hasCameraCommand: pendingCommands.cameraCommand != nil,
+            hasPresentCommand: pendingCommands.presentCommand != nil,
+            issues: lastSubmissionIssues
+        )
         lock.unlock()
 
         DispatchQueue.main.async { [weak self] in
@@ -519,38 +558,44 @@ public final class Renderer: NSObject, MTKViewDelegate {
             let cameraPosition = activeCameraPosition(from: commands)
 
             for command in commands.renderable3D {
-                let clip = worldToClip(position: command.position, cameraPosition: cameraPosition)
-                let scale = max(0.02, (command.scale.x + command.scale.y + command.scale.z) / 3 * 0.03)
+                let projection = projectWorldPosition(position: command.position, cameraPosition: cameraPosition)
+                let scale = max(
+                    0.02,
+                    (command.scale.x + command.scale.y + command.scale.z) / 3 * 0.04 * projection.perspectiveScale
+                )
                 let rotationZ = yawRadians(from: command.rotation)
-                drawFallbackSquare(
+                drawFallbackQuad(
                     encoder: encoder,
-                    center: clip,
+                    center: projection.clipPosition,
                     halfSize: RendererVector2(x: scale, y: scale),
-                    rotationRadians: rotationZ
+                    rotationRadians: rotationZ,
+                    color: RendererVector4(x: 0.96, y: 0.58, z: 0.18, w: 1.0)
                 )
             }
 
             for command in commands.renderable2D {
-                let clip = worldToClip(
+                let projection = projectWorldPosition(
                     position: RendererVector3(x: command.position.x, y: command.position.y, z: 0),
                     cameraPosition: cameraPosition
                 )
                 let halfWidth = max(0.02, command.size.x * command.scale.x * 0.01)
                 let halfHeight = max(0.02, command.size.y * command.scale.y * 0.01)
-                drawFallbackSquare(
+                drawFallbackQuad(
                     encoder: encoder,
-                    center: clip,
+                    center: projection.clipPosition,
                     halfSize: RendererVector2(x: halfWidth, y: halfHeight),
-                    rotationRadians: 0
+                    rotationRadians: 0,
+                    color: RendererVector4(x: 0.18, y: 0.78, z: 1.0, w: 1.0)
                 )
             }
 
             if commands.renderable2D.isEmpty, commands.renderable3D.isEmpty, commands.presentCommand != nil {
-                drawFallbackSquare(
+                drawFallbackQuad(
                     encoder: encoder,
                     center: RendererVector2(x: 0, y: 0),
                     halfSize: RendererVector2(x: 0.15, y: 0.15),
-                    rotationRadians: 0
+                    rotationRadians: 0,
+                    color: RendererVector4(x: 0.45, y: 0.45, z: 0.45, w: 1.0)
                 )
             }
 
@@ -611,18 +656,25 @@ public final class Renderer: NSObject, MTKViewDelegate {
         #include <metal_stdlib>
         using namespace metal;
 
-        struct VertexOut {
-            float4 position [[position]];
+        struct FallbackVertex {
+            float2 position;
+            float4 color;
         };
 
-        vertex VertexOut fallbackVertex(const device float2 *positions [[buffer(0)]], uint vid [[vertex_id]]) {
+        struct VertexOut {
+            float4 position [[position]];
+            float4 color;
+        };
+
+        vertex VertexOut fallbackVertex(const device FallbackVertex *vertices [[buffer(0)]], uint vid [[vertex_id]]) {
             VertexOut out;
-            out.position = float4(positions[vid], 0.0, 1.0);
+            out.position = float4(vertices[vid].position, 0.0, 1.0);
+            out.color = vertices[vid].color;
             return out;
         }
 
-        fragment float4 fallbackFragment() {
-            return float4(0.0, 1.0, 1.0, 1.0);
+        fragment float4 fallbackFragment(VertexOut in [[stage_in]]) {
+            return in.color;
         }
         """
 
@@ -651,11 +703,19 @@ public final class Renderer: NSObject, MTKViewDelegate {
         return camera.position
     }
 
-    private func worldToClip(position: RendererVector3, cameraPosition: RendererVector3) -> RendererVector2 {
+    private func projectWorldPosition(
+        position: RendererVector3,
+        cameraPosition: RendererVector3
+    ) -> (clipPosition: RendererVector2, perspectiveScale: Float) {
         let worldScale: Float = 50
-        let x = (position.x - cameraPosition.x) / worldScale
-        let y = (position.y - cameraPosition.y) / worldScale
-        return RendererVector2(x: x, y: y)
+        let relativeZ = position.z - cameraPosition.z
+        let perspectiveScale = 1 / max(0.35, 1 + relativeZ / 75)
+        let x = ((position.x - cameraPosition.x) / worldScale) * perspectiveScale
+        let y = ((position.y - cameraPosition.y) / worldScale) * perspectiveScale
+        return (
+            clipPosition: RendererVector2(x: x, y: y),
+            perspectiveScale: perspectiveScale
+        )
     }
 
     private func yawRadians(from rotation: RendererQuaternion) -> Float {
@@ -664,11 +724,12 @@ public final class Renderer: NSObject, MTKViewDelegate {
         return atan2(siny, cosy)
     }
 
-    private func drawFallbackSquare(
+    private func drawFallbackQuad(
         encoder: MTLRenderCommandEncoder,
         center: RendererVector2,
         halfSize: RendererVector2,
-        rotationRadians: Float
+        rotationRadians: Float,
+        color: RendererVector4
     ) {
         let c = cos(rotationRadians)
         let s = sin(rotationRadians)
@@ -683,12 +744,54 @@ public final class Renderer: NSObject, MTKViewDelegate {
         let tr = rotate(halfSize.x, halfSize.y)
 
         let vertices: [FallbackVertex] = [
-            FallbackVertex(x: center.x + bl.x, y: center.y + bl.y),
-            FallbackVertex(x: center.x + br.x, y: center.y + br.y),
-            FallbackVertex(x: center.x + tl.x, y: center.y + tl.y),
-            FallbackVertex(x: center.x + br.x, y: center.y + br.y),
-            FallbackVertex(x: center.x + tr.x, y: center.y + tr.y),
-            FallbackVertex(x: center.x + tl.x, y: center.y + tl.y),
+            FallbackVertex(
+                x: center.x + bl.x,
+                y: center.y + bl.y,
+                red: color.x,
+                green: color.y,
+                blue: color.z,
+                alpha: color.w
+            ),
+            FallbackVertex(
+                x: center.x + br.x,
+                y: center.y + br.y,
+                red: color.x,
+                green: color.y,
+                blue: color.z,
+                alpha: color.w
+            ),
+            FallbackVertex(
+                x: center.x + tl.x,
+                y: center.y + tl.y,
+                red: color.x,
+                green: color.y,
+                blue: color.z,
+                alpha: color.w
+            ),
+            FallbackVertex(
+                x: center.x + br.x,
+                y: center.y + br.y,
+                red: color.x,
+                green: color.y,
+                blue: color.z,
+                alpha: color.w
+            ),
+            FallbackVertex(
+                x: center.x + tr.x,
+                y: center.y + tr.y,
+                red: color.x,
+                green: color.y,
+                blue: color.z,
+                alpha: color.w
+            ),
+            FallbackVertex(
+                x: center.x + tl.x,
+                y: center.y + tl.y,
+                red: color.x,
+                green: color.y,
+                blue: color.z,
+                alpha: color.w
+            ),
         ]
 
         encoder.setVertexBytes(
@@ -698,4 +801,11 @@ public final class Renderer: NSObject, MTKViewDelegate {
         )
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertices.count)
     }
+}
+
+private struct RendererVector4 {
+    var x: Float
+    var y: Float
+    var z: Float
+    var w: Float
 }
