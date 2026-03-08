@@ -12,6 +12,44 @@ import MetalKit
     #expect(renderer?.configuration.preferredFramesPerSecond == 30)
 }
 
+@Test func fallbackVertexLayoutMatchesMetalAlignment() {
+    #expect(Renderer.fallbackVertexStride == 32)
+}
+
+@Test func cameraRotationChangesProjectedPosition() throws {
+    let renderer = try #require(Renderer(device: MTLCreateSystemDefaultDevice()))
+    let position = RendererVector3(x: 10, y: 0, z: 0)
+    let identityCamera = CameraDescriptor(position: RendererVector3(x: 0, y: 0, z: -25))
+    let rolledCamera = CameraDescriptor(
+        position: RendererVector3(x: 0, y: 0, z: -25),
+        rotation: quaternion(z: 0.70710677, w: 0.70710677)
+    )
+
+    let identityProjection = try #require(renderer.projectWorldPosition(position: position, camera: identityCamera))
+    let rolledProjection = try #require(renderer.projectWorldPosition(position: position, camera: rolledCamera))
+
+    #expect(abs(identityProjection.clipPosition.x) > 0.01)
+    #expect(abs(identityProjection.clipPosition.y) < 0.001)
+    #expect(abs(rolledProjection.clipPosition.x) < 0.001)
+    #expect(rolledProjection.clipPosition.y < -0.01)
+}
+
+@Test func screenRotationTracksRenderableAndCameraRotation() throws {
+    let renderer = try #require(Renderer(device: MTLCreateSystemDefaultDevice()))
+
+    let renderableRotation = renderer.screenRotationRadians(
+        for: quaternion(z: 0.70710677, w: 0.70710677),
+        cameraRotation: .identity
+    )
+    let cameraRoll = renderer.screenRotationRadians(
+        for: .identity,
+        cameraRotation: quaternion(z: 0.70710677, w: 0.70710677)
+    )
+
+    #expect(abs(renderableRotation - (Float.pi / 2)) < 0.01)
+    #expect(abs(cameraRoll + (Float.pi / 2)) < 0.01)
+}
+
 @Test func recordsFrameSnapshotForSubmittedCommands() throws {
     let renderer = try #require(Renderer(device: MTLCreateSystemDefaultDevice()))
     let texture = try #require(
@@ -63,4 +101,13 @@ import MetalKit
     #expect(snapshot.hasCameraCommand)
     #expect(snapshot.hasPresentCommand)
     #expect(snapshot.issues.isEmpty)
+}
+
+private func quaternion(
+    x: Float = 0,
+    y: Float = 0,
+    z: Float = 0,
+    w: Float
+) -> RendererQuaternion {
+    RendererQuaternion(x: x, y: y, z: z, w: w)
 }

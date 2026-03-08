@@ -11,13 +11,20 @@ import UniformTypeIdentifiers
 import GiskardEngine
 
 struct EntityEditorView: View {
+    struct CapabilityEntry: Identifiable, Equatable {
+        let id: UUID
+        var isCustom: Bool
+        var customValue: String
+        var knownValue: String
+    }
+
     @State var entity: Entity
     @State private var isDirty: Bool = false
     @State private var pitch: Double = 0
     @State private var yaw: Double = 0
     @State private var roll: Double = 0
     @State private var magnitude: Double = 0
-    @State private var capabilityText: String = ""
+    @State private var capabilityEntries: [CapabilityEntry] = []
     @State private var updateTask: Task<Void, Never>? = nil
     @State private var childCountText: String = "0"
     @State private var childEntryDisplayValues: [String] = []
@@ -42,7 +49,7 @@ struct EntityEditorView: View {
         self.yaw = self.entity.rotation.vector.y
         self.roll = self.entity.rotation.vector.z
         self.magnitude = self.entity.rotation.vector.w
-        self.capabilityText = self.entity.capabilities.joined(separator: ", ")
+        self.capabilityEntries = Self.makeCapabilityEntries(from: self.entity.capabilities)
         self.childCountText = "\(self.entity.children.count)"
         self.childEntryDisplayValues = self.entity.childEntityPaths
         self.childEntryIDs = self.entity.children.map { Optional($0) }
@@ -130,36 +137,34 @@ struct EntityEditorView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Capabilities (Comma Separated)")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        TextField("", text: $capabilityText)
-                            .textFieldStyle(.plain)
-                            .controlSize(.small)
-                            .lineLimit(1)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .frame(height: 24)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.secondary.opacity(0.12))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
-                            )
-                            .onChange(of: capabilityText) { _, newValue in
-                                let items =
-                                    newValue
-                                    .split(separator: ",")
-                                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                                    .filter { !$0.isEmpty }
-                                entity.RemoveAllCapabilities()
-                                for item in items {
-                                    entity.AddCapability(capability: item)
-                                }
-                                isDirty = true
+                        HStack(alignment: .center) {
+                            Text("Custom")
+                                .frame(width: 72, alignment: .leading)
+                            Spacer()
+                            Text("Entries")
+                            Text("\(capabilityEntries.count)")
+                                .foregroundColor(.secondary)
+                            Button(action: addCapabilityEntry) {
+                                Image(systemName: "plus")
                             }
+                            .buttonStyle(.borderless)
+                            Button(action: removeCapabilityEntry) {
+                                Image(systemName: "minus")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(capabilityEntries.isEmpty)
+                        }
+
+                        if capabilityEntries.isEmpty {
+                            Text("No capability entries.")
+                                .foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            ForEach(Array(capabilityEntries.enumerated()), id: \.element.id) {
+                                index, _ in
+                                capabilityEntryRow(index: index)
+                            }
+                        }
                     }
 
                     ScriptAttachmentListView(
@@ -215,7 +220,7 @@ struct EntityEditorView: View {
         self.yaw = self.entity.rotation.vector.y
         self.roll = self.entity.rotation.vector.z
         self.magnitude = self.entity.rotation.vector.w
-        self.capabilityText = self.entity.capabilities.joined(separator: ", ")
+        self.capabilityEntries = Self.makeCapabilityEntries(from: self.entity.capabilities)
         self.childCountText = "\(self.entity.children.count)"
         self.childEntryDisplayValues = self.entity.childEntityPaths
         self.childEntryIDs = self.entity.children.map { Optional($0) }
@@ -237,6 +242,168 @@ struct EntityEditorView: View {
         self.rotationWText = formatNumericText(self.entity.rotation.vector.w)
         self.scriptPaths = self.entity.scriptPaths
         refreshChildDisplayValuesFromIDs()
+    }
+
+    @ViewBuilder
+    private func capabilityEntryRow(index: Int) -> some View {
+        HStack(spacing: 8) {
+            Toggle("", isOn: capabilityIsCustomBinding(for: index))
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                .frame(width: 20, alignment: .leading)
+
+            if capabilityEntries[index].isCustom {
+                TextField(
+                    "Custom value",
+                    text: capabilityCustomValueBinding(for: index)
+                )
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.regular)
+                .frame(minWidth: 120)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Picker("", selection: capabilityKnownValueBinding(for: index)) {
+                    ForEach(Self.knownCapabilityNames(), id: \.self) { capability in
+                        Text(capability).tag(capability)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func capabilityIsCustomBinding(for index: Int) -> Binding<Bool> {
+        Binding(
+            get: { capabilityEntries[index].isCustom },
+            set: { newValue in
+                capabilityEntries[index].isCustom = newValue
+                syncCapabilitiesFromEntries()
+            }
+        )
+    }
+
+    private func capabilityCustomValueBinding(for index: Int) -> Binding<String> {
+        Binding(
+            get: { capabilityEntries[index].customValue },
+            set: { newValue in
+                capabilityEntries[index].customValue = newValue
+                syncCapabilitiesFromEntries()
+            }
+        )
+    }
+
+    private func capabilityKnownValueBinding(for index: Int) -> Binding<String> {
+        Binding(
+            get: { capabilityEntries[index].knownValue },
+            set: { newValue in
+                capabilityEntries[index].knownValue = newValue
+                syncCapabilitiesFromEntries()
+            }
+        )
+    }
+
+    private func addCapabilityEntry() {
+        capabilityEntries.append(Self.emptyCapabilityEntry())
+        syncCapabilitiesFromEntries()
+    }
+
+    private func removeCapabilityEntry() {
+        guard !capabilityEntries.isEmpty else { return }
+        capabilityEntries.removeLast()
+        syncCapabilitiesFromEntries()
+    }
+
+    private func syncCapabilitiesFromEntries() {
+        entity.capabilities = Self.resolvedCapabilities(from: capabilityEntries)
+        isDirty = true
+    }
+
+    static func knownCapabilityNames() -> [String] {
+        CapabilitySystem.AllCapabilities
+            .map { String(describing: $0) }
+            .sorted()
+    }
+
+    static func makeCapabilityEntries(from capabilities: [String]) -> [CapabilityEntry] {
+        let knownCapabilities = knownCapabilityNames()
+        return capabilities.map { capability in
+            if let knownCapability = canonicalKnownCapability(
+                named: capability,
+                knownCapabilities: knownCapabilities
+            ) {
+                return CapabilityEntry(
+                    id: UUID(),
+                    isCustom: false,
+                    customValue: "",
+                    knownValue: knownCapability
+                )
+            }
+
+            return CapabilityEntry(
+                id: UUID(),
+                isCustom: true,
+                customValue: capability,
+                knownValue: knownCapabilities.first ?? ""
+            )
+        }
+    }
+
+    static func resolvedCapabilities(from entries: [CapabilityEntry]) -> [String] {
+        var resolved: [String] = []
+        for entry in entries {
+            let capability: String
+            if entry.isCustom {
+                guard !entry.customValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    continue
+                }
+                capability = entry.customValue
+            } else {
+                let trimmedValue = entry.knownValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedValue.isEmpty else {
+                    continue
+                }
+                capability =
+                    canonicalKnownCapability(
+                        named: trimmedValue,
+                        knownCapabilities: knownCapabilityNames()
+                    ) ?? trimmedValue
+            }
+
+            if !resolved.contains(where: { existingCapability in
+                if entry.isCustom {
+                    return existingCapability == capability
+                }
+                return existingCapability.caseInsensitiveCompare(capability) == .orderedSame
+            }) {
+                resolved.append(capability)
+            }
+        }
+        return resolved
+    }
+
+    private static func canonicalKnownCapability(
+        named capability: String,
+        knownCapabilities: [String]
+    ) -> String? {
+        let trimmedValue = capability.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else {
+            return nil
+        }
+
+        return knownCapabilities.first {
+            $0.caseInsensitiveCompare(trimmedValue) == .orderedSame
+        }
+    }
+
+    private static func emptyCapabilityEntry() -> CapabilityEntry {
+        CapabilityEntry(
+            id: UUID(),
+            isCustom: false,
+            customValue: "",
+            knownValue: knownCapabilityNames().first ?? ""
+        )
     }
 
     func saveEntity() {

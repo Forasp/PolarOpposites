@@ -71,7 +71,7 @@ public final class SceneRenderTickSystem {
         }
 
         if fallbackMeshHandle == nil {
-            // Placeholder mesh handle; renderer currently uses fallback square drawing for commands.
+            // Placeholder handles keep command validation satisfied until authored assets are wired through.
             fallbackMeshHandle = renderer.uploadMesh(
                 vertexData: Data(repeating: 0, count: MemoryLayout<Float>.size * 12),
                 indexData: Data(repeating: 0, count: MemoryLayout<UInt16>.size * 6),
@@ -122,7 +122,13 @@ public final class SceneRenderTickSystem {
                         y: Float(node.position[safe: 1] ?? 0)
                     ),
                     size: RendererVector2(x: 1, y: 1),
-                    scale: RendererVector2(x: 1, y: 1)
+                    scale: RendererVector2(x: 1, y: 1),
+                    rotation: RendererQuaternion(
+                        x: Float(node.rotation[safe: 0] ?? 0),
+                        y: Float(node.rotation[safe: 1] ?? 0),
+                        z: Float(node.rotation[safe: 2] ?? 0),
+                        w: Float(node.rotation[safe: 3] ?? 1)
+                    )
                 )
             )
         }

@@ -207,6 +207,24 @@ struct EditorProjectSupportTests {
         #expect(nodes[0].children[0].name == "Renamed Child")
     }
 
+    @Test func capabilityEntriesRoundTripKnownAndCustomValues() {
+        let entries = EntityEditorView.makeCapabilityEntries(
+            from: ["camera", "Renderable3D", "MyCustomCapability", "camera"]
+        )
+
+        #expect(entries.count == 4)
+        #expect(entries[0].isCustom == false)
+        #expect(entries[0].knownValue == "Camera")
+        #expect(entries[1].isCustom == false)
+        #expect(entries[1].knownValue == "Renderable3D")
+        #expect(entries[2].isCustom == true)
+        #expect(entries[2].customValue == "MyCustomCapability")
+
+        let resolved = EntityEditorView.resolvedCapabilities(from: entries)
+
+        #expect(resolved == ["Camera", "Renderable3D", "MyCustomCapability"])
+    }
+
     private func makeTemporaryProjectRoot(named name: String) throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("GiskardTests", isDirectory: true)

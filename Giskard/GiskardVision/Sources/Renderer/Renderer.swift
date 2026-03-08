@@ -1,5 +1,6 @@
 import Foundation
 import MetalKit
+import simd
 
 public struct RendererClearColor: Sendable, Equatable {
     public var red: Double
@@ -198,17 +199,20 @@ public struct Renderable2DCommand: Sendable, Equatable {
     public var position: RendererVector2
     public var size: RendererVector2
     public var scale: RendererVector2
+    public var rotation: RendererQuaternion
 
     public init(
         texture: TextureHandle,
         position: RendererVector2,
         size: RendererVector2,
-        scale: RendererVector2 = .one
+        scale: RendererVector2 = .one,
+        rotation: RendererQuaternion = .identity
     ) {
         self.texture = texture
         self.position = position
         self.size = size
         self.scale = scale
+        self.rotation = rotation
     }
 }
 
@@ -293,15 +297,23 @@ private struct FrameCommandPackage {
 }
 
 private struct FallbackVertex {
-    var x: Float
-    var y: Float
-    var red: Float
-    var green: Float
-    var blue: Float
-    var alpha: Float
+    var position: SIMD2<Float>
+    var color: SIMD4<Float>
+
+    init(x: Float, y: Float, red: Float, green: Float, blue: Float, alpha: Float) {
+        position = SIMD2(x, y)
+        color = SIMD4(red, green, blue, alpha)
+    }
+}
+
+struct RendererProjection: Equatable {
+    var clipPosition: RendererVector2
+    var perspectiveScale: Float
 }
 
 public final class Renderer: NSObject, MTKViewDelegate {
+    static let fallbackVertexStride = MemoryLayout<FallbackVertex>.stride
+
     public let device: MTLDevice
     public private(set) var configuration: RendererConfiguration
     public private(set) var lastSubmissionIssues: [String] = []
@@ -555,16 +567,21 @@ public final class Renderer: NSObject, MTKViewDelegate {
             let fallbackPipelineState
         {
             encoder.setRenderPipelineState(fallbackPipelineState)
-            let cameraPosition = activeCameraPosition(from: commands)
+            let camera = activeCamera(from: commands)
 
             for command in commands.renderable3D {
-                let projection = projectWorldPosition(position: command.position, cameraPosition: cameraPosition)
+                guard let projection = projectWorldPosition(position: command.position, camera: camera) else {
+                    continue
+                }
                 let scale = max(
-                    0.02,
-                    (command.scale.x + command.scale.y + command.scale.z) / 3 * 0.04 * projection.perspectiveScale
+                    0.028,
+                    (command.scale.x + command.scale.y + command.scale.z) / 3 * 0.035 * projection.perspectiveScale
                 )
-                let rotationZ = yawRadians(from: command.rotation)
-                drawFallbackQuad(
+                let rotationZ = screenRotationRadians(
+                    for: command.rotation,
+                    cameraRotation: camera.rotation
+                )
+                drawFallback3DPlaceholder(
                     encoder: encoder,
                     center: projection.clipPosition,
                     halfSize: RendererVector2(x: scale, y: scale),
@@ -574,17 +591,22 @@ public final class Renderer: NSObject, MTKViewDelegate {
             }
 
             for command in commands.renderable2D {
-                let projection = projectWorldPosition(
+                guard let projection = projectWorldPosition(
                     position: RendererVector3(x: command.position.x, y: command.position.y, z: 0),
-                    cameraPosition: cameraPosition
-                )
-                let halfWidth = max(0.02, command.size.x * command.scale.x * 0.01)
-                let halfHeight = max(0.02, command.size.y * command.scale.y * 0.01)
-                drawFallbackQuad(
+                    camera: camera
+                ) else {
+                    continue
+                }
+                let halfWidth = max(0.03, command.size.x * command.scale.x * 0.012)
+                let halfHeight = max(0.03, command.size.y * command.scale.y * 0.012)
+                drawFallback2DPlaceholder(
                     encoder: encoder,
                     center: projection.clipPosition,
                     halfSize: RendererVector2(x: halfWidth, y: halfHeight),
-                    rotationRadians: 0,
+                    rotationRadians: screenRotationRadians(
+                        for: command.rotation,
+                        cameraRotation: camera.rotation
+                    ),
                     color: RendererVector4(x: 0.18, y: 0.78, z: 1.0, w: 1.0)
                 )
             }
@@ -694,34 +716,280 @@ public final class Renderer: NSObject, MTKViewDelegate {
         return try? device.makeRenderPipelineState(descriptor: descriptor)
     }
 
-    private func activeCameraPosition(from commands: FrameCommandPackage) -> RendererVector3 {
+    private func activeCamera(from commands: FrameCommandPackage) -> CameraDescriptor {
         guard let cameraCommand = commands.cameraCommand,
             let camera = cameras[cameraCommand.camera]
         else {
-            return .zero
+            return .init()
         }
-        return camera.position
+        return camera
     }
 
-    private func projectWorldPosition(
+    func projectWorldPosition(
         position: RendererVector3,
-        cameraPosition: RendererVector3
-    ) -> (clipPosition: RendererVector2, perspectiveScale: Float) {
+        camera: CameraDescriptor
+    ) -> RendererProjection? {
         let worldScale: Float = 50
-        let relativeZ = position.z - cameraPosition.z
-        let perspectiveScale = 1 / max(0.35, 1 + relativeZ / 75)
-        let x = ((position.x - cameraPosition.x) / worldScale) * perspectiveScale
-        let y = ((position.y - cameraPosition.y) / worldScale) * perspectiveScale
-        return (
+        let relativePosition = RendererVector3(
+            x: position.x - camera.position.x,
+            y: position.y - camera.position.y,
+            z: position.z - camera.position.z
+        )
+        let cameraSpacePosition = rotate(
+            vector: relativePosition,
+            by: inverse(of: normalized(camera.rotation))
+        )
+        guard cameraSpacePosition.z > max(camera.nearPlane, 0.001) else {
+            return nil
+        }
+
+        let perspectiveScale = 1 / max(0.35, 1 + cameraSpacePosition.z / 75)
+        let x = (cameraSpacePosition.x / worldScale) * perspectiveScale
+        let y = (cameraSpacePosition.y / worldScale) * perspectiveScale
+        return RendererProjection(
             clipPosition: RendererVector2(x: x, y: y),
             perspectiveScale: perspectiveScale
         )
     }
 
-    private func yawRadians(from rotation: RendererQuaternion) -> Float {
-        let siny = 2 * (rotation.w * rotation.z + rotation.x * rotation.y)
-        let cosy = 1 - 2 * (rotation.y * rotation.y + rotation.z * rotation.z)
-        return atan2(siny, cosy)
+    func screenRotationRadians(
+        for rotation: RendererQuaternion,
+        cameraRotation: RendererQuaternion
+    ) -> Float {
+        let relativeRotation = multiply(
+            inverse(of: normalized(cameraRotation)),
+            normalized(rotation)
+        )
+        let localRight = rotate(
+            vector: RendererVector3(x: 1, y: 0, z: 0),
+            by: relativeRotation
+        )
+        return atan2(localRight.y, localRight.x)
+    }
+
+    private func drawFallback2DPlaceholder(
+        encoder: MTLRenderCommandEncoder,
+        center: RendererVector2,
+        halfSize: RendererVector2,
+        rotationRadians: Float,
+        color: RendererVector4
+    ) {
+        let border = RendererVector4(x: 0.04, y: 0.08, z: 0.20, w: 1.0)
+        let accent = RendererVector4(x: 0.92, y: 0.97, z: 1.00, w: 0.95)
+        let badgeHalfSize = RendererVector2(
+            x: max(0.012, halfSize.x * 0.22),
+            y: max(0.012, halfSize.y * 0.22)
+        )
+
+        drawFallbackQuad(
+            encoder: encoder,
+            center: center,
+            halfSize: RendererVector2(x: halfSize.x * 1.12, y: halfSize.y * 1.12),
+            rotationRadians: rotationRadians,
+            color: border
+        )
+        drawFallbackQuad(
+            encoder: encoder,
+            center: center,
+            halfSize: halfSize,
+            rotationRadians: rotationRadians,
+            color: color
+        )
+        drawFallbackQuad(
+            encoder: encoder,
+            center: offset(
+                point: center,
+                by: RendererVector2(x: 0, y: halfSize.y * 0.48),
+                rotationRadians: rotationRadians
+            ),
+            halfSize: RendererVector2(
+                x: max(0.016, halfSize.x * 0.82),
+                y: max(0.012, halfSize.y * 0.18)
+            ),
+            rotationRadians: rotationRadians,
+            color: accent
+        )
+        drawFallbackQuad(
+            encoder: encoder,
+            center: offset(
+                point: center,
+                by: RendererVector2(x: -halfSize.x * 0.34, y: -halfSize.y * 0.12),
+                rotationRadians: rotationRadians
+            ),
+            halfSize: badgeHalfSize,
+            rotationRadians: rotationRadians,
+            color: RendererVector4(x: 0.08, y: 0.16, z: 0.32, w: 0.95)
+        )
+    }
+
+    private func drawFallback3DPlaceholder(
+        encoder: MTLRenderCommandEncoder,
+        center: RendererVector2,
+        halfSize: RendererVector2,
+        rotationRadians: Float,
+        color: RendererVector4
+    ) {
+        let depth = max(0.012, min(halfSize.x, halfSize.y) * 0.55)
+        let backCenter = offset(
+            point: center,
+            by: RendererVector2(x: depth, y: depth),
+            rotationRadians: rotationRadians
+        )
+        let frontHighlight = RendererVector4(
+            x: min(color.x + 0.18, 1.0),
+            y: min(color.y + 0.18, 1.0),
+            z: min(color.z + 0.18, 1.0),
+            w: color.w
+        )
+        let sideColor = RendererVector4(
+            x: color.x * 0.55,
+            y: color.y * 0.55,
+            z: color.z * 0.55,
+            w: color.w
+        )
+        let backColor = RendererVector4(
+            x: color.x * 0.35,
+            y: color.y * 0.35,
+            z: color.z * 0.35,
+            w: color.w
+        )
+        let connectorThickness = max(0.01, depth * 0.42)
+        let frontCorners = orientedQuadCorners(center: center, halfSize: halfSize, rotationRadians: rotationRadians)
+        let backCorners = orientedQuadCorners(center: backCenter, halfSize: halfSize, rotationRadians: rotationRadians)
+
+        drawFallbackQuad(
+            encoder: encoder,
+            center: backCenter,
+            halfSize: halfSize,
+            rotationRadians: rotationRadians,
+            color: backColor
+        )
+
+        for index in frontCorners.indices {
+            drawFallbackSegment(
+                encoder: encoder,
+                from: frontCorners[index],
+                to: backCorners[index],
+                thickness: connectorThickness,
+                color: sideColor
+            )
+        }
+
+        drawFallbackQuad(
+            encoder: encoder,
+            center: center,
+            halfSize: halfSize,
+            rotationRadians: rotationRadians,
+            color: color
+        )
+        drawFallbackQuad(
+            encoder: encoder,
+            center: center,
+            halfSize: RendererVector2(x: halfSize.x * 0.55, y: halfSize.y * 0.55),
+            rotationRadians: rotationRadians,
+            color: frontHighlight
+        )
+    }
+
+    private func drawFallbackSegment(
+        encoder: MTLRenderCommandEncoder,
+        from start: RendererVector2,
+        to end: RendererVector2,
+        thickness: Float,
+        color: RendererVector4
+    ) {
+        let deltaX = end.x - start.x
+        let deltaY = end.y - start.y
+        let length = hypot(deltaX, deltaY)
+
+        guard length > 0.0001 else {
+            return
+        }
+
+        drawFallbackQuad(
+            encoder: encoder,
+            center: RendererVector2(x: (start.x + end.x) * 0.5, y: (start.y + end.y) * 0.5),
+            halfSize: RendererVector2(x: length * 0.5, y: thickness * 0.5),
+            rotationRadians: atan2(deltaY, deltaX),
+            color: color
+        )
+    }
+
+    private func orientedQuadCorners(
+        center: RendererVector2,
+        halfSize: RendererVector2,
+        rotationRadians: Float
+    ) -> [RendererVector2] {
+        let localCorners = [
+            RendererVector2(x: -halfSize.x, y: -halfSize.y),
+            RendererVector2(x: halfSize.x, y: -halfSize.y),
+            RendererVector2(x: halfSize.x, y: halfSize.y),
+            RendererVector2(x: -halfSize.x, y: halfSize.y),
+        ]
+
+        return localCorners.map {
+            offset(point: center, by: $0, rotationRadians: rotationRadians)
+        }
+    }
+
+    private func offset(
+        point: RendererVector2,
+        by localOffset: RendererVector2,
+        rotationRadians: Float
+    ) -> RendererVector2 {
+        let c = cos(rotationRadians)
+        let s = sin(rotationRadians)
+        let rotatedX = localOffset.x * c - localOffset.y * s
+        let rotatedY = localOffset.x * s + localOffset.y * c
+        return RendererVector2(x: point.x + rotatedX, y: point.y + rotatedY)
+    }
+
+    private func normalized(_ quaternion: RendererQuaternion) -> RendererQuaternion {
+        let length = sqrt(
+            quaternion.x * quaternion.x
+            + quaternion.y * quaternion.y
+            + quaternion.z * quaternion.z
+            + quaternion.w * quaternion.w
+        )
+        guard length > 0.0001 else {
+            return .identity
+        }
+        return RendererQuaternion(
+            x: quaternion.x / length,
+            y: quaternion.y / length,
+            z: quaternion.z / length,
+            w: quaternion.w / length
+        )
+    }
+
+    private func inverse(of quaternion: RendererQuaternion) -> RendererQuaternion {
+        RendererQuaternion(
+            x: -quaternion.x,
+            y: -quaternion.y,
+            z: -quaternion.z,
+            w: quaternion.w
+        )
+    }
+
+    private func multiply(_ lhs: RendererQuaternion, _ rhs: RendererQuaternion) -> RendererQuaternion {
+        RendererQuaternion(
+            x: lhs.w * rhs.x + lhs.x * rhs.w + lhs.y * rhs.z - lhs.z * rhs.y,
+            y: lhs.w * rhs.y - lhs.x * rhs.z + lhs.y * rhs.w + lhs.z * rhs.x,
+            z: lhs.w * rhs.z + lhs.x * rhs.y - lhs.y * rhs.x + lhs.z * rhs.w,
+            w: lhs.w * rhs.w - lhs.x * rhs.x - lhs.y * rhs.y - lhs.z * rhs.z
+        )
+    }
+
+    private func rotate(vector: RendererVector3, by quaternion: RendererQuaternion) -> RendererVector3 {
+        let q = normalized(quaternion)
+        let axis = SIMD3<Float>(q.x, q.y, q.z)
+        let value = SIMD3<Float>(vector.x, vector.y, vector.z)
+        let rotated =
+            (2 * simd_dot(axis, value) * axis)
+            + ((q.w * q.w - simd_dot(axis, axis)) * value)
+            + (2 * q.w * simd_cross(axis, value))
+
+        return RendererVector3(x: rotated.x, y: rotated.y, z: rotated.z)
     }
 
     private func drawFallbackQuad(
@@ -796,7 +1064,7 @@ public final class Renderer: NSObject, MTKViewDelegate {
 
         encoder.setVertexBytes(
             vertices,
-            length: vertices.count * MemoryLayout<FallbackVertex>.stride,
+            length: vertices.count * Renderer.fallbackVertexStride,
             index: 0
         )
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertices.count)
